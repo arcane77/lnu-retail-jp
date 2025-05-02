@@ -18,3 +18,5 @@ echo ".env.production.local" >> .gitignore
 echo "" >> .gitignore
 echo "# OS files" >> .gitignore
 echo ".DS_Store" >> .gitignore
+echo "/build" >> .gitignore
+echo "/cloud-functions/build" >> .gitignore
