@@ -1,0 +1,31 @@
+service: admin
+runtime: nodejs20
+instance_class: F2
+env: standard
+entrypoint: npm start
+
+
+env_variables:
+  AUTH0_DOMAIN: "optimus-sandbox.us.auth0.com"
+  AUTH0_CLIENT_ID: "$oqwR0oWXVLzbdfjiQ13xq8TvZW5a2aNR"
+  AUTH0_CLIENT_SECRET: "3dfam3ojhiGEgoyu0veB_eWCBlAwKw432DH5iNagX9VyeeIQ6GSNx9g-nXrEoxLv"
+  AUTH0_CALLBACK_URL: "https://admin-dot-optimus-lnu.df.r.appspot.com/login" 
+  
+
+handlers:
+  # Serve all static files from the build/static directory
+  - url: /static/(.*)
+    secure: always 
+    static_files: build/static/\1
+    upload: build/static/.*
+
+  # Serve files from the root directory
+  - url: /(.*\.(json|ico|js|css|png|jpg|jpeg|gif|svg))$
+    static_files: build/\1
+    upload: build/.*\.(json|ico|js|css|png|jpg|jpeg|gif|svg)$
+
+  # Serve the React app's index.html for all other routes
+  - url: /.*
+    static_files: build/index.html
+    upload: build/index.html
+    secure: always

@@ -1,0 +1,20 @@
+echo "# Node.js dependencies" > .gitignore
+echo "node_modules/" >> .gitignore
+echo "*/node_modules/" >> .gitignore
+echo "npm-debug.log" >> .gitignore
+echo "yarn-debug.log*" >> .gitignore
+echo "yarn-error.log*" >> .gitignore
+echo "" >> .gitignore
+echo "# Build files" >> .gitignore
+echo "/build" >> .gitignore
+echo "/dist" >> .gitignore
+echo "" >> .gitignore
+echo "# Environment variables" >> .gitignore
+echo ".env" >> .gitignore
+echo ".env.local" >> .gitignore
+echo ".env.development.local" >> .gitignore
+echo ".env.test.local" >> .gitignore
+echo ".env.production.local" >> .gitignore
+echo "" >> .gitignore
+echo "# OS files" >> .gitignore
+echo ".DS_Store" >> .gitignore

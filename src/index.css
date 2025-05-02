@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Quicksand:wght@300..700&display=swap');
+
+
+body {
+  margin: 0;
+  background-color: #EFEFEF;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.custom-shadow {
+  box-shadow: 0 1px 2px rgba(68, 67, 67, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.custom-s {
+  box-shadow: -2px -3px 10.3px rgba(136, 136, 136, 0.13), 3px 4px 9.1px rgba(136, 136, 136, 0.13);
+
+}
+
+.custom-shadow-red {
+  box-shadow: 0 8px 10px 8px rgba(255, 10, 10, 0.1), 0 2px 4px rgba(255, 0, 0, 0.1);
+}
+
+.custom-shadow-green {
+  box-shadow: 0 8px 10px 8px rgba(10, 255, 88, 0.1), 0 2px 4px rgba(0, 255, 60, 0.1);
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
