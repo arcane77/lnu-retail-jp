@@ -126,7 +126,7 @@ const LiveFloor = ({ selectedFloor }) => {
       ) : (
         <div className="flex flex-col items-center">
           <div>
-            <PieChart width={480} height={220}>
+            <PieChart width={480} height={240}>
               <Pie
                 data={[
                   {

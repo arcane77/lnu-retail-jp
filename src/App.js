@@ -14,6 +14,7 @@ import SpaceViewer from "./SpaceViewer";
 import SmplrspaceViewer from "./SmplrspaceViewer";
 import MainAnalytics from "./components/MainAnalytics";
 import EditSpaces from "./components/EditSpaces";
+import Historical from "./components/Historical"
 
 // Authentication check function
 const isAuthenticated = () => {
@@ -60,6 +61,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <EditSpaces />
+            </ProtectedRoute>
+          }
+        />
+
+<Route
+          path="/historical"
+          element={
+            <ProtectedRoute>
+              <Historical />
             </ProtectedRoute>
           }
         />

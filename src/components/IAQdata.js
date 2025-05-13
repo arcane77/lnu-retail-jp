@@ -41,6 +41,20 @@ const useIAQData = () => {
     let floor = null;
     let zone = null;
 
+    // Special case handling for specific sensors mentioned
+    if (location === "1C-DS778" || location === "1C-E440") {
+      return { floor: "1F", zone: "Zone C" };
+    } else if (location === "2C-REF") {
+      return { floor: "2F", zone: "Zone C" };
+    } else if (location === "MC-Co-Learning Zone") {
+      return { floor: "MF", zone: "Zone C" };
+    } else if (["3C-LT301", "3C-E305"].includes(location) || 
+               location.startsWith("3C") || 
+               location.startsWith("3F")) {
+      return { floor: "3F", zone: "Zone B" }; // Keep 3F as Zone B as per viewer3.js
+    }
+
+    // Regular parsing for other locations
     // Check if the first character is a digit for the floor
     if (/^\d/.test(location)) {
       floor = location.charAt(0);
@@ -50,10 +64,10 @@ const useIAQData = () => {
         const zoneChar = location.charAt(1).toUpperCase();
         if (zoneChar === 'A' || zoneChar === 'S') {
           zone = 'A'; // 'S' for South -> Zone A
-        } else if (zoneChar === 'B' || zoneChar === 'C') {
-          zone = 'B'; // 'C' for Central -> Zone B
-        } else if (zoneChar === 'N') {
-          zone = 'C'; // 'N' for North -> Zone C
+        } else if (zoneChar === 'B' || zoneChar === 'C' && floor !== '1' && floor !== '2') {
+          zone = 'B'; // 'C' for Central -> Zone B (except for 1C and 2C)
+        } else if (zoneChar === 'N' || zoneChar === 'C' && (floor === '1' || floor === '2')) {
+          zone = 'C'; // 'N' for North -> Zone C, and 1C/2C -> Zone C
         }
       }
     } else if (location.toUpperCase().startsWith('M')) {
@@ -64,9 +78,9 @@ const useIAQData = () => {
         const zoneChar = location.charAt(1).toUpperCase();
         if (zoneChar === 'A' || zoneChar === 'S') {
           zone = 'A';
-        } else if (zoneChar === 'B' || zoneChar === 'C') {
+        } else if (zoneChar === 'B' || zoneChar === 'C' && !location.includes("Co-Learning")) {
           zone = 'B';
-        } else if (zoneChar === 'N') {
+        } else if (zoneChar === 'N' || location.includes("Co-Learning")) {
           zone = 'C';
         }
       }
@@ -101,7 +115,28 @@ const useIAQData = () => {
     sensors.forEach(sensor => {
       if (!sensor.location) return;
       
-      const { floor, zone } = parseLocation(sensor.location);
+      // Special handling for specific IAQ sensors mentioned in requirements
+      let floor, zone;
+      
+      if (sensor.id === "IAQ-L07" || sensor.id === "IAQ-L08") {
+        floor = "1F";
+        zone = "Zone C";
+      } else if (sensor.id === "IAQ-L13") {
+        floor = "2F";
+        zone = "Zone C";
+      } else if (sensor.id === "IAQ-L10") {
+        floor = "MF";
+        zone = "Zone C";
+      } else if (sensor.id === "IAQ-P05" || sensor.id === "IAQ-L17" || sensor.id === "IAQ-L18") {
+        floor = "3F";
+        zone = "Zone B"; // 3F only has Zone B according to viewer3.js
+      } else {
+        // Regular parsing for other sensors
+        const parsedLocation = parseLocation(sensor.location);
+        floor = parsedLocation.floor;
+        zone = parsedLocation.zone;
+      }
+      
       if (!floor || !zone) return;
       
       if (!floorZoneGroups[floor]) {
@@ -167,6 +202,9 @@ const useIAQData = () => {
       });
     });
     
+    // Log processed data for debugging
+    console.log("Processed Zone Data:", processedData);
+    
     return processedData;
   }, [parseLocation, displayFloorMap]);
 
@@ -191,6 +229,16 @@ const useIAQData = () => {
       const iaqSensors = dataArray.filter(
         (sensor) =>
           sensor.id.startsWith("IAQ-P") || sensor.id.startsWith("IAQ-L")
+      );
+
+      // Log specific sensors for debugging
+      const specificSensors = [
+        "IAQ-L07", "IAQ-L08", "IAQ-L13", "IAQ-L10", 
+        "IAQ-P05", "IAQ-L17", "IAQ-L18"
+      ];
+      
+      console.log("Specific IAQ sensors:", 
+        iaqSensors.filter(sensor => specificSensors.includes(sensor.id))
       );
 
       setData(iaqSensors);

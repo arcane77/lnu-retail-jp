@@ -1,180 +1,303 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { format } from "date-fns";
+import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine
+} from 'recharts';
+import { format, parseISO } from 'date-fns';
 
-const HourlyData = ({ selectedDate, selectedFloor }) => {
+// New set of colors for zones (different from previous ones)
+const ZONE_COLORS = {
+  'south-zone': '#9F9EDA', // lavender for Zone A
+  'central-zone': '#B5768A', // puce for Zone B
+  'north-zone': '#B87D4B', // copper for Zone C
+  // Add fallback colors for any other zones
+  'default': ['#6A5ACD', '#48D1CC', '#DA70D6', '#9370DB', '#6495ED', '#7B68EE']
+};
+
+// Zone naming mapping
+const ZONE_DISPLAY_NAMES = {
+  'south-zone': 'Zone A',
+  'central-zone': 'Zone B',
+  'north-zone': 'Zone C'
+};
+
+const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
+  const [hourlyData, setHourlyData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [hourlyData, setHourlyData] = useState({});
   const [error, setError] = useState(null);
+  const [zoneMapping, setZoneMapping] = useState({});
+  const [maxOccupancy, setMaxOccupancy] = useState(50); // Default max for y-axis
 
-  // Hours to display (HKT)
-  const hours = ["10AM", "11AM", "12PM", "1PM", "2PM", "3PM", "4PM", "5PM"];
-  
-  // UTC to HKT mapping (UTC+8)
-  const utcToHktMap = {
-    "02": "10AM",
-    "03": "11AM",
-    "04": "12PM",
-    "05": "1PM", 
-    "06": "2PM",
-    "07": "3PM",
-    "08": "4PM",
-    "09": "5PM"
-  };
+  // Normalized zone names (for consistent display)
+  const zones = useMemo(() => Object.keys(zoneMapping), [zoneMapping]);
 
-  // Helper function to format date to YYYY-MM-DD
+  // Format the date for API request
   const formatDate = (date) => {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
-  // Helper function to get background color based on occupancy level
-  const getBackgroundColor = (occupancy, isOddIndex) => {
-    // Default to alternating background for "-" values
-    if (occupancy === "-") {
-      return isOddIndex ? "bg-blue-100" : "bg-blue-50";
-    }
-    
-    // Different shades based on occupancy
-    if (occupancy < 30) {
-      return "bg-blue-200 text-gray-800"; // Light blue
-    } else if (occupancy >= 30 && occupancy <= 60) {
-      return "bg-blue-400 text-white"; // Medium blue
-    } else {
-      return "bg-blue-600 text-white"; // Dark blue
-    }
+  // Extract UTC hour from timestamp
+  const extractUTCHour = (timestamp) => {
+    const date = parseISO(timestamp);
+    return date.getUTCHours();
   };
 
-  // Fetch hourly data from API
-  const fetchHourlyData = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const formattedDate = formatDate(selectedDate);
-      const response = await axios.get(
-        `https://njs-01.optimuslab.space/lnu-footfall/floor-zone/hourly?start_date=${formattedDate}&end_date=${formattedDate}`
-      );
-
-      if (response.data) {
-        processHourlyData(response.data);
-      }
-    } catch (err) {
-      console.error("Error fetching hourly data:", err);
-      setError("Failed to fetch hourly data. Please try again later.");
-    } finally {
-      setLoading(false);
-    }
+  // Convert UTC hour to HKT hour (UTC+8)
+  const convertUTCtoHKTHour = (utcHour) => {
+    return (utcHour + 8) % 24;
   };
 
-  // Process hourly data from API
-  const processHourlyData = (data) => {
-    // Initialize hourly occupancy data structure
-    const hourlyTotals = {};
-    for (let hour in utcToHktMap) {
-      const hktHour = utcToHktMap[hour];
-      hourlyTotals[hktHour] = "-"; // Default value if no data
-    }
+  // Format hour for display with leading zero
+  const formatHourForDisplay = (hour) => {
+    return `${hour.toString().padStart(2, '0')}:00`;
+  };
 
-    // Filter data for the selected floor
-    const floorData = data.filter(item => item.floor_id === selectedFloor);
-    
-    // Process each zone for this floor
-    floorData.forEach(zone => {
-      const { zone_name, data: zoneData } = zone;
+  // Normalize zone name for consistent mapping (handles South-zone vs South-Zone)
+  const normalizeZoneName = (zoneName) => {
+    return zoneName.toLowerCase().replace(/-zone/i, '-zone');
+  };
+
+  // Get display name for a zone (Zone A, B, C)
+  const getZoneDisplayName = (normalizedZoneName) => {
+    return ZONE_DISPLAY_NAMES[normalizedZoneName] || zoneMapping[normalizedZoneName] || normalizedZoneName;
+  };
+
+  // Get color for a zone
+  const getZoneColor = (normalizedZoneName, index) => {
+    return ZONE_COLORS[normalizedZoneName] || ZONE_COLORS.default[index % ZONE_COLORS.default.length];
+  };
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchHourlyData = async () => {
+      setLoading(true);
+      setError(null);
       
-      // Skip Main-Entrance zone and Relocated zone as requested
-      if (zone_name === "Main-Entrance" || zone_name.toLowerCase() === "relocated") {
-        return;
+      try {
+        const formattedDate = formatDate(selectedDate);
+        const response = await axios.get(
+          `https://njs-01.optimuslab.space/lnu-footfall/floor-zone/hourly?start_date=${formattedDate}&end_date=${formattedDate}`
+        );
+        
+        if (response.data) {
+          processApiData(response.data);
+        }
+      } catch (err) {
+        console.error('Error fetching hourly data:', err);
+        setError('Failed to fetch hourly data. Please try again later.');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Process each timestamp for this zone
+    if (selectedDate) {
+      fetchHourlyData();
+    }
+  }, [selectedDate, selectedFloor]);
+
+  // Process and organize the API data
+  const processApiData = (data) => {
+    // Filter data for selected floor and exclude 'relocated' and 'main entrance' zones
+    const floorData = data.filter(item => 
+      item.floor_id === selectedFloor && 
+      !normalizeZoneName(item.zone_name).includes('relocated') && 
+      !normalizeZoneName(item.zone_name).includes('main-entrance')
+    );
+
+    if (floorData.length === 0) {
+      setHourlyData([]);
+      setZoneMapping({});
+      setMaxOccupancy(50);
+      return;
+    }
+
+    // Create a mapping of normalized zone names to display names
+    const zoneMap = {};
+    floorData.forEach(item => {
+      const normalizedName = normalizeZoneName(item.zone_name);
+      zoneMap[normalizedName] = item.zone_name; // Keep original name for reference
+    });
+    setZoneMapping(zoneMap);
+
+    // Create a map of timestamps to organize data by hour
+    const hourlyMap = new Map();
+    let maxValue = 0; // Track max value for y-axis scaling
+    
+    // Process each zone's data
+    floorData.forEach(item => {
+      const { zone_name, data: zoneData } = item;
+      const normalizedZoneName = normalizeZoneName(zone_name);
+      
+      // Process each hourly entry
       zoneData.forEach(entry => {
         const { timestamp, total_occupancy } = entry;
         
-        // Extract hour from timestamp (format: "2025-04-30T02:00:00.000Z")
-        const utcHour = timestamp.split("T")[1].substring(0, 2);
-        const hktHour = utcToHktMap[utcHour];
+        // Skip if timestamp is missing
+        if (!timestamp) return;
         
-        if (hktHour) {
-          // Initialize if first value for this hour
-          if (hourlyTotals[hktHour] === "-") {
-            hourlyTotals[hktHour] = 0;
-          }
-          
-          // Add the occupancy value (including negatives)
-          hourlyTotals[hktHour] += total_occupancy;
+        // Extract UTC hour from timestamp
+        const utcHour = extractUTCHour(timestamp);
+        // Convert to HKT hour
+        const hktHour = convertUTCtoHKTHour(utcHour);
+        
+        const hourKey = utcHour; // Keep UTC hour as the key for data organization
+        
+        if (!hourlyMap.has(hourKey)) {
+          hourlyMap.set(hourKey, { 
+            utcHour: hourKey,
+            utcFormatted: formatHourForDisplay(utcHour),
+            hktHour: hktHour,
+            hktFormatted: formatHourForDisplay(hktHour)
+          });
+        }
+        
+        // Use total_occupancy but ensure it's not negative
+        const adjustedOccupancy = Math.max(0, total_occupancy);
+        hourlyMap.get(hourKey)[normalizedZoneName] = adjustedOccupancy;
+        
+        // Update max value for y-axis scaling
+        if (adjustedOccupancy > maxValue) {
+          maxValue = adjustedOccupancy;
         }
       });
     });
-
-    // Round values to integers
-    Object.keys(hourlyTotals).forEach(hour => {
-      if (hourlyTotals[hour] !== "-") {
-        hourlyTotals[hour] = Math.round(hourlyTotals[hour]);
-      }
-    });
-
-    setHourlyData(hourlyTotals);
+    
+    // Convert map to array and sort by UTC hour
+    const hourlyDataArray = Array.from(hourlyMap.values())
+      .sort((a, b) => a.utcHour - b.utcHour);
+    
+    // Set max occupancy for y-axis with 20% buffer
+    setMaxOccupancy(Math.ceil(maxValue * 1.2));
+    setHourlyData(hourlyDataArray);
   };
 
-  // Fetch data when selected date or floor changes
-  useEffect(() => {
-    fetchHourlyData();
-  }, [selectedDate, selectedFloor]);
+  // Custom tooltip to show values
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length && payload[0] && payload[0].payload) {
+      const data = payload[0].payload;
+      
+      return (
+        <div className="bg-white p-4 border border-gray-200 shadow-md rounded-md">
+          <p className="font-bold text-gray-800">{data.hktFormatted} HKT ({data.utcFormatted} UTC)</p>
+          {payload.map((entry, index) => {
+            const normalizedZone = entry.dataKey;
+            const displayName = getZoneDisplayName(normalizedZone);
+            
+            return (
+              <p key={index} style={{ color: entry.color }}>
+                <span className="font-medium">{displayName}: </span>
+                {entry.value !== undefined ? Math.round(entry.value) : 'N/A'} 
+                {/* people               */}
+                </p>
+            );
+          })}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Hourly Occupancy
-      </h2>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">Hourly Occupancy</h2>
       
       {loading ? (
-        <div className="flex justify-center">
-          <p className="text-lg">Loading hourly data...</p>
+        <div className="flex justify-center items-center h-80">
+          <p>Loading hourly data...</p>
         </div>
       ) : error ? (
-        <p className="text-red-500">{error}</p>
+        <div className="text-red-500 p-4 text-center">
+          {error}
+        </div>
+      ) : hourlyData.length === 0 ? (
+        <div className="text-gray-500 p-4 text-center">
+          No hourly data available for this floor on the selected date.
+        </div>
       ) : (
-        <div>
-          <div className="flex items-center mb-2">
-            <div className="text-gray-600 w-24">
-              {format(selectedDate, "dd MMM yyyy")}
-            </div>
-            
-            {hours.map((hour, index) => (
-              <div key={hour} className="flex-1 text-center">
-                <div 
-                  className={`mx-1 py-4 px-2 rounded-sm ${
-                    hourlyData[hour] !== "-" 
-                      ? getBackgroundColor(hourlyData[hour], index % 2 === 1)
-                      : (index % 2 === 1 ? "bg-blue-100" : "bg-blue-50")
-                  }`}
-                >
-                  <div className="text-lg font-semibold">
-                    {hourlyData[hour]}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-6 pt-2">
-            <div className="flex border-t border-gray-200">
-              <div className="w-24"></div>
-              {hours.map(hour => (
-                <div key={hour} className="flex-1 text-center">
-                  <div className="text-gray-600 mt-2">{hour}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={hourlyData}
+              margin={{ top: 10, right: 30, left: 20, bottom: 30 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis 
+                dataKey="hktFormatted" 
+                label={{ 
+                  value: 'Hour of Day', 
+                  position: 'insideBottom', 
+                  offset: -10 
+                }}
+                height={60}
+              />
+              <YAxis 
+                label={{ 
+                  value: 'Occupancy', 
+                  angle: -90, 
+                  position: 'insideLeft',
+                  style: { textAnchor: 'middle' }
+                }}
+                domain={[0, maxOccupancy]}
+                allowDecimals={false}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend 
+                verticalAlign="top" 
+                height={36}
+                formatter={(value) => getZoneDisplayName(value)}
+              />
+              
+             {/* Render in specific order: A, B, C */}
+<Line
+  type="monotone"
+  dataKey="south-zone"
+  name="south-zone"
+  stroke={getZoneColor('south-zone', 0)}
+  strokeWidth={2}
+  connectNulls={true}
+  dot={false}
+  activeDot={{ r: 6 }}
+/>
+<Line
+  type="monotone"
+  dataKey="central-zone"
+  name="central-zone"
+  stroke={getZoneColor('central-zone', 1)}
+  strokeWidth={2}
+  connectNulls={true}
+  dot={false}
+  activeDot={{ r: 6 }}
+/>
+<Line
+  type="monotone"
+  dataKey="north-zone"
+  name="north-zone"
+  stroke={getZoneColor('north-zone', 2)}
+  strokeWidth={2}
+  connectNulls={true}
+  dot={false}
+  activeDot={{ r: 6 }}
+/>
+              
+              {/* Reference line at max capacity */}
+              <ReferenceLine y={50} stroke="#777" strokeDasharray="3 3" label="Max Capacity (50)" />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>
   );
 };
 
-export default HourlyData;
+export default HourlyFloorOccupancy;

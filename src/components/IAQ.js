@@ -573,7 +573,7 @@ const IAQ = () => {
         const dataArray = Object.entries(result).map(([id, values]) => {
           const timestamp = values.timestamp
             ? new Date(values.timestamp).toLocaleString()
-            : "N/A";
+            : "-";
 
           return {
             id,
@@ -622,7 +622,7 @@ const IAQ = () => {
               (sensor) =>
                 sensor[column] !== undefined &&
                 sensor[column] !== null &&
-                sensor[column] !== "N/A"
+                sensor[column] !== "-"
             )
             .map((sensor) => parseFloat(sensor[column]) || 0);
 
@@ -690,7 +690,7 @@ const IAQ = () => {
       if (
         sensor[column] !== undefined &&
         sensor[column] !== null &&
-        sensor[column] !== "N/A" &&
+        sensor[column] !== "-" &&
         columnAverages[column] > 0
       ) {
         const sensorValue = parseFloat(sensor[column]);
@@ -1164,7 +1164,7 @@ const IAQ = () => {
                           {sensor.area}
                         </td>
                         <td className="px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base relative">
-                          {sensor.co2 || "N/A"}
+                          {sensor.co2 || "-"}
                           {isMetricExceeding("co2", exceedingMetrics) && (
                             <div className="inline-block pl-2 relative group">
                               <svg
@@ -1197,7 +1197,7 @@ const IAQ = () => {
                           )}
                         </td>
                         <td className="px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base">
-                          {sensor.humidity || "N/A"}
+                          {sensor.humidity || "-"}
                         </td>
                         <td
                           className={`px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base ${
@@ -1206,13 +1206,13 @@ const IAQ = () => {
                               : ""
                           }`}
                         >
-                          {sensor.temperature || "N/A"}
+                          {sensor.temperature || "-"}
                           {isHigherThanHKO(sensor.temperature) && (
                             <span className="ml-1">↑</span>
                           )}
                         </td>
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
-                          {sensor.pm10 || "N/A"}
+                          {sensor.pm10 || "-"}
                           {isMetricExceeding("pm10", exceedingMetrics) && (
                             <div className="inline-block pl-2 relative group">
                               <svg
@@ -1245,7 +1245,7 @@ const IAQ = () => {
                           )}
                         </td>
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
-                          {sensor.pm2_5 || "N/A"}
+                          {sensor.pm2_5 || "-"}
                           {isMetricExceeding("pm2_5", exceedingMetrics) && (
                             <div className="inline-block pl-2 relative group">
                               <svg
@@ -1278,7 +1278,7 @@ const IAQ = () => {
                           )}
                         </td>
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
-                          {sensor.tvoc || "N/A"}
+                          {sensor.tvoc || "-"}
                           {isMetricExceeding("tvoc", exceedingMetrics) && (
                             <div className="inline-block pl-2 relative group">
                               <svg
@@ -1312,7 +1312,7 @@ const IAQ = () => {
                         </td>
 
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
-                          {sensor.pressure || "N/A"}
+                          {sensor.pressure || "-"}
                           {isMetricExceeding("pressure", exceedingMetrics) && (
                             <div className="inline-block pl-2 relative group">
                               <svg
@@ -1347,10 +1347,10 @@ const IAQ = () => {
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300">
                           {sensor.light_level === 0
                             ? "0"
-                            : sensor.light_level || "N/A"}
+                            : sensor.light_level || "-"}
                         </td>
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300">
-                          {sensor.last_updated || "N/A"}
+                          {sensor.last_updated || "-"}
                         </td>
                         <ChevronRight
                           className={`h-5 w-5 mt-8 mr-2 text-gray-600 transition-transform ${

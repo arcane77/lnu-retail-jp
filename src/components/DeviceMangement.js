@@ -6,7 +6,6 @@ import {
   BatteryFull,
   BatteryMedium,
   BatteryLow,
-  MapPin,
   ChevronRight,
   Search,
 } from "lucide-react";
@@ -36,25 +35,33 @@ const DeviceManagement = () => {
   ];
 
   // Function to determine device type for sorting order and categorization
-  const getDeviceType = (deviceId) => {
+  const getDeviceType = (deviceId, devType) => {
+    // First check the device_type if it's explicitly related to occupancy
+    if (devType === "occupancy-1") {
+      return "Occupancy Sensors";
+    }
+    
+    // Then check device ID patterns
     if (deviceId.toLowerCase().includes("iaq")) return "IAQ Sensors";
     if (deviceId.toLowerCase().startsWith("wl")) return "Water Leakage Sensors";
     if (deviceId.startsWith("MDR-")) return "MDR Sensors";
-    if (deviceId.startsWith("LRT01")) return "Occupancy Sensors";
-    if (deviceId.startsWith("LRT02")) return "Occupancy Sensors";
-    if (deviceId.startsWith("LRT03")) return "Occupancy Sensors";
-    if (deviceId.startsWith("LRT04")) return "Occupancy Sensors";
-    if (deviceId.startsWith("LRT05")) return "Occupancy Sensors";
-    if (deviceId.startsWith("LRT06")) return "Occupancy Sensors";
-    if (deviceId.startsWith("1FN")) return "Occupancy Sensors";
-    if (deviceId.startsWith("1FS")) return "Occupancy Sensors";
-    if (deviceId.startsWith("1FC")) return "Occupancy Sensors";
-    if (deviceId.startsWith("3FN")) return "Occupancy Sensors";
-    if (deviceId.startsWith("3FS")) return "Occupancy Sensors";
-    if (deviceId.startsWith("3FC")) return "Occupancy Sensors";
-    if (deviceId.startsWith("MFC")) return "Occupancy Sensors";
 
-    return "Other Devices";
+    // Enhanced Footfall Sensors detection
+    if (deviceId.toLowerCase().includes("footfall") || 
+      deviceId.toLowerCase().startsWith("ff") ||
+      deviceId.includes("LRR-EX") ||
+      deviceId.startsWith("1F-L") ||
+      deviceId.startsWith("1F-ME") ||
+      deviceId.startsWith("1F-BF") ||
+      deviceId.startsWith("1F-Lobby") ||
+      deviceId.startsWith("2F-S") ||
+      deviceId.startsWith("2F-L") ||
+      deviceId.startsWith("3F-S") ||
+      deviceId.startsWith("3F-L") ||
+      deviceId.startsWith("MF-S")) return "Footfall Sensors";
+
+    // If none of the specific types match, we'll return null to filter it out later
+    return null;
   };
 
   // Function to compare devices for sorting
@@ -84,17 +91,37 @@ const DeviceManagement = () => {
       const iaqData = await fetchIAQData();
       const wlData = await fetchWLData();
       const mdrData = await fetchMDRData();
+      const footfallData = await fetchFootfallData();
+      const occupancyData = await fetchOccupancyData(); // Fetch occupancy data
+
+      // Create virtual devices for footfall sensors
+      const footfallDevices = Object.keys(footfallData).map(areaId => {
+        return {
+          device_id: areaId,
+          device_type: "Footfall Sensor",
+          location: `${footfallData[areaId].building} ${footfallData[areaId].floor}`,
+          area: footfallData[areaId].zone,
+          last_data_read: new Date().toISOString(),
+          battery: 100
+        };
+      });
+
+      // Combine regular devices with footfall devices
+      const allDevices = [...data, ...footfallDevices];
 
       // Transform API data to match our component needs
-      const transformedData = data
+      const transformedData = allDevices
         .filter((device) => !EXCLUDED_DEVICE_IDS.includes(device.device_id)) // Filter out excluded devices
         .map((device) => {
           const deviceId = device.device_id || "";
-          const deviceType = getDeviceType(deviceId);
+          const deviceType = getDeviceType(deviceId, device.device_type);
+          
+          // Skip devices that don't match any of our specific categories
+          if (!deviceType) return null;
 
           // Try to find matching sensor data based on device ID
           let sensorData = null;
-          let lastUpdatedTime = new Date(device.last_data_read);
+          let lastUpdatedTime = new Date(device.last_data_read || new Date());
 
           if (deviceType === "IAQ Sensors" && iaqData[deviceId]) {
             sensorData = iaqData[deviceId];
@@ -110,6 +137,14 @@ const DeviceManagement = () => {
           } else if (deviceType === "MDR Sensors" && mdrData[deviceId]) {
             sensorData = mdrData[deviceId];
             lastUpdatedTime = new Date(sensorData.timestamp);
+          } else if (deviceType === "Footfall Sensors" && footfallData[deviceId]) {
+            // Handle Footfall sensor data
+            sensorData = footfallData[deviceId];
+            lastUpdatedTime = new Date(sensorData.timestamp);
+          } else if (deviceType === "Occupancy Sensors" && occupancyData[deviceId]) {
+            // Handle Occupancy sensor data
+            sensorData = occupancyData[deviceId];
+            lastUpdatedTime = new Date(sensorData.timestamp || device.last_data_read);
           }
 
           return {
@@ -123,15 +158,17 @@ const DeviceManagement = () => {
                 ? "N/A"
                 : new Date(lastUpdatedTime).toLocaleString(),
             battery: sensorData
-              ? sensorData.battery || device.battery
-              : device.battery,
+              ? sensorData.battery || device.battery || 100
+              : device.battery || 100,
             lastActive:
               sensorData && sensorData.lastUpdated === "N/A"
                 ? null
                 : lastUpdatedTime,
             sensorData: sensorData || null, // Store additional sensor data
+            isPoweredByPOE: deviceType === "Occupancy Sensors" || deviceType === "Footfall Sensors"
           };
         })
+        .filter(device => device !== null) // Filter out null devices (those without a specific category)
         .sort(compareDevices); // Sort the devices
 
       setDevices(transformedData);
@@ -193,6 +230,76 @@ const DeviceManagement = () => {
       return await response.json();
     } catch (err) {
       console.error("Error fetching MDR data:", err);
+      return {};
+    }
+  };
+  
+  // Fetch Footfall sensor data
+  const fetchFootfallData = async () => {
+    try {
+      const response = await fetch("https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices");
+      if (!response.ok) {
+        throw new Error(`Footfall API error: ${response.status}`);
+      }
+      const data = await response.json();
+      
+      // Transform the data to match our expected format
+      // Create an object with area_id as keys for easier lookup
+      const transformedData = {};
+      data.forEach(item => {
+        // Use area_id as the device ID
+        transformedData[item.area_id] = {
+          timestamp: new Date().toISOString(), // Current time as these don't seem to have timestamps
+          count: item.functional_capacity || 0,
+          maxCapacity: item.max_capacity || 0,
+          zone: item.zone_name || '',
+          newZone: item.new_zone_name || '',
+          floor: item.floor_id || '',
+          building: item.building || '',
+          status: item.functional_capacity < item.max_capacity ? "normal" : "overcrowded",
+          battery: 100 // These are POE powered, so we'll set battery to 100%
+        };
+      });
+      
+      return transformedData;
+    } catch (err) {
+      console.error("Error fetching Footfall data:", err);
+      return {};
+    }
+  };
+  
+  // Fetch Occupancy sensor data
+  const fetchOccupancyData = async () => {
+    try {
+      // We're using the same API endpoint as the general device fetch
+      const response = await fetch(`${BASE_URL}/devices`);
+      if (!response.ok) {
+        throw new Error(`Occupancy API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Filter devices with occupancy-1 or occupancy-sensors device_type
+      const occupancyDevices = data.filter(device => 
+        device.device_type === "occupancy-1" || device.device_type === "occupancy-sensors"
+      );
+      
+      // Transform to an object with device_id as keys for easier lookup
+      const transformedData = {};
+      occupancyDevices.forEach(device => {
+        transformedData[device.device_id] = {
+          timestamp: device.last_data_read || new Date().toISOString(),
+          status: device.status || "active",
+          location: device.location || "",
+          area: device.area || "",
+          battery: 100, // POE powered
+          isPoweredByPOE: true
+        };
+      });
+      
+      return transformedData;
+    } catch (err) {
+      console.error("Error fetching Occupancy data:", err);
       return {};
     }
   };
@@ -514,7 +621,16 @@ const DeviceManagement = () => {
                         />
                       </span>
                     )}
-
+                    {category === "Footfall Sensors" && (
+                      <span className="text-xl">
+                        <img
+                          width="20"
+                          height="20"
+                          src="https://img.icons8.com/ios/50/walking.png"
+                          alt="footfall-sensor"
+                        />
+                      </span>
+                    )}
                     {category === "Occupancy Sensors" && (
                       <span className="text-xl">
                         <img
@@ -525,7 +641,6 @@ const DeviceManagement = () => {
                         />
                       </span>
                     )}
-                    {/* {category === 'Other Devices' && <span className="text-xl">⚙️</span>} */}
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold">{category}</h2>
@@ -591,7 +706,7 @@ const DeviceManagement = () => {
 
                           <div className="flex items-center space-x-8">
                             <div className="flex items-center">
-                              {device.category === "Occupancy Sensors" ? (
+                              {device.isPoweredByPOE ? (
                                 <>
                                   <img width="16" height="16" src="https://img.icons8.com/forma-light/24/electrical.png" alt="electrical"/>
                                   <span className="ml-1 text-sm">POE</span>
@@ -646,7 +761,7 @@ const DeviceManagement = () => {
                               <div>
                                 <p className="text-sm text-gray-500">Power</p>
                                 <div className="flex items-center">
-                                  {device.category === "Occupancy Sensors" ? (
+                                  {device.isPoweredByPOE ? (
                                     <>
                                       <img width="16" height="16" src="https://img.icons8.com/forma-light/24/electrical.png" alt="electrical"/>
                                       <span className="ml-1">POE powered</span>
@@ -760,6 +875,80 @@ const DeviceManagement = () => {
                                           ? "Installed"
                                           : "Tampered"}
                                       </p>
+                                    </div>
+                                  </>
+                                )}
+                                
+                              {device.sensorData &&
+                                device.category === "Footfall Sensors" && (
+                                  <>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Current Capacity
+                                      </p>
+                                      <p>{device.sensorData.count || 0} people</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Max Capacity
+                                      </p>
+                                      <p>{device.sensorData.maxCapacity || 0} people</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Zone
+                                      </p>
+                                      <p>{device.sensorData.zone || 'N/A'} ({device.sensorData.newZone || 'N/A'})</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Floor
+                                      </p>
+                                      <p>{device.sensorData.floor || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Status
+                                      </p>
+                                      <p className={
+                                        device.sensorData.status === "normal"
+                                          ? "text-green-500"
+                                          : "text-red-500"
+                                      }>
+                                        {device.sensorData.status === "normal" ? "Normal" : "Overcrowded"}
+                                      </p>
+                                    </div>
+                                  </>
+                                )}
+                                
+                              {device.sensorData &&
+                                device.category === "Occupancy Sensors" && (
+                                  <>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Device Status
+                                      </p>
+                                      <p className={
+                                        device.sensorData.status === "active"
+                                          ? "text-green-500"
+                                          : "text-yellow-500"
+                                      }>
+                                        {device.sensorData.status === "active" ? "Active" : device.sensorData.status}
+                                      </p>
+                                    </div>
+                                    {device.sensorData.location && (
+                                      <div>
+                                        <p className="text-sm text-gray-500">
+                                          Location Details
+                                        </p>
+                                        <p>{device.sensorData.location}</p>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Power Source
+                                      </p>
+                                      <p>POE (Power Over Ethernet)</p>
                                     </div>
                                   </>
                                 )}

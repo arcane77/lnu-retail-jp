@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { FaTemperatureHigh, FaTint } from "react-icons/fa";
+import { FaTemperatureHigh, FaTint, FaDesktop } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import useIAQData from "./IAQdata"; // Import the IAQ data service
-
+ 
 const Viewer3 = () => {
   const currentDate = new Date();
   const { logout } = useAuth0();
@@ -14,18 +14,22 @@ const Viewer3 = () => {
   const navigate = useNavigate();
   const [activeFloor, setActiveFloor] = useState("1/F"); // Track active floor
   const [zoneData, setZoneData] = useState({});
+  const [crData, setCRData] = useState({
+    "1F-CR1": { occupancy: 0, timestamp: 0 },
+    "1F-CR2": { occupancy: 0, timestamp: 0 }
+  });
   const [loading, setLoading] = useState(true);
   
   // Use our new IAQ data service
   const { zoneIAQData, loading: iaqLoading } = useIAQData();
-
+ 
   const day = currentDate.getDate().toString().padStart(2, "0");
   const month = currentDate.toLocaleString("en-US", { month: "short" });
   const year = currentDate.getFullYear();
   const weekday = currentDate.toLocaleString("en-US", { weekday: "long" });
-
+ 
   const formattedDate = `${day} ${month} ${year}, ${weekday}`; // format date
-
+ 
   // Map for floor IDs to match the API format
   const floorIdMap = {
     "1/F": "1F",
@@ -33,22 +37,67 @@ const Viewer3 = () => {
     "2/F": "2F",
     "3/F": "3F"
   };
-
+ 
   // Map for zone names
   const zoneNameMap = {
     "South": "Zone A",
     "Central": "Zone B",
     "North": "Zone C"
   };
-
+ 
   // Floor and zone availability mapping
   const floorZoneMapping = {
     "1/F": ["Zone A", "Zone B", "Zone C"],
     "M/F": ["Zone A", "Zone C"],
-    "2/F": ["Zone A", "Zone B", "Zone C"], 
+    "2/F": ["Zone A", "Zone B", "Zone C"],
     "3/F": ["Zone B"],
   };
-
+ 
+  // Fetch Computer Room occupancy data
+  useEffect(() => {
+    const fetchCRData = async () => {
+      try {
+        const response = await fetch(
+          "https://optimusc.flowfuse.cloud/lingnan-library-occupancy"
+        );
+        const data = await response.json();
+        
+        // Process the response data
+        const processedData = {};
+        
+        // Check if data is an array
+        if (Array.isArray(data)) {
+          data.forEach(item => {
+            if (item.area === "1F-CR1" || item.area === "1F-CR2") {
+              processedData[item.area] = {
+                occupancy: item.occupancy,
+                timestamp: item.timestamp
+              };
+            }
+          });
+          
+          setCRData(prevData => {
+            // Only update if different
+            if (JSON.stringify(prevData) !== JSON.stringify(processedData)) {
+              return {...prevData, ...processedData};
+            }
+            return prevData;
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching CR data:", error);
+      }
+    };
+    
+    // Fetch immediately
+    fetchCRData();
+    
+    // Then fetch every 10 seconds
+    const intervalId = setInterval(fetchCRData, 10 * 1000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
+ 
   useEffect(() => {
     const fetchWeather = async () => {
       try {
@@ -56,15 +105,15 @@ const Viewer3 = () => {
           "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=en"
         );
         const data = await response.json();
-
+ 
         // Get Tuen Mun temperature
         const tuenMunTemp = data.temperature.data.find(
           (item) => item.place === "Tuen Mun"
         )?.value;
-
+ 
         // Get Hong Kong Observatory humidity (only available location)
         const humidity = data.humidity.data[0]?.value;
-
+ 
         if (tuenMunTemp !== undefined && humidity !== undefined) {
           setWeather({
             temp: tuenMunTemp,
@@ -75,10 +124,10 @@ const Viewer3 = () => {
         console.error("Error fetching weather data:", error);
       }
     };
-
+ 
     fetchWeather();
   }, []);
-
+ 
   // Fetch zone data
   useEffect(() => {
     const fetchZoneData = async () => {
@@ -184,7 +233,7 @@ const Viewer3 = () => {
         }
       }
     };
-
+ 
     // Fetch immediately on first render
     fetchZoneData();
     
@@ -193,15 +242,15 @@ const Viewer3 = () => {
     
     return () => clearInterval(intervalId);
   }, [zoneIAQData]); // Added zoneIAQData as a dependency
-
+ 
   // Floor map URLs
   const floorMaps = {
     "1/F": "https://pwwpdev.github.io/Lingnan/first_floor_dos_overlay.html",
     "M/F": "https://pwwpdev.github.io/Lingnan/m_floor_dos.html",
-    "2/F": "https://pwwpdev.github.io/Lingnan/second_floor_dos.html", 
-    "3/F": "https://pwwpdev.github.io/Lingnan/third_floor_dos.html", 
+    "2/F": "https://pwwpdev.github.io/Lingnan/second_floor_dos.html",
+    "3/F": "https://pwwpdev.github.io/Lingnan/third_floor_dos.html",
   };
-
+ 
   // SVG icons for different occupancy statuses with redesigned human shapes
   const availableIcon = (
     <svg
@@ -252,7 +301,7 @@ const Viewer3 = () => {
       </g>
     </svg>
   );
-
+ 
   const lessAvailableIcon = (
     <svg
       width="58"
@@ -292,7 +341,7 @@ const Viewer3 = () => {
       </g>
     </svg>
   );
-
+ 
   const crowdedIcon = (
     <svg
       width="58"
@@ -325,6 +374,35 @@ const Viewer3 = () => {
   
   // Component for zone occupancy indicator
   const ZoneIndicator = ({ zoneName, zoneData }) => {
+    // Determine which computer room info to show based on the zone
+    let computerRoomInfo = null;
+    
+    if (activeFloor === "1/F") {
+      if (zoneName === "Zone A") {
+        computerRoomInfo = (
+          <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
+            <div className="flex items-center text-[17px] font-semibold mb-1">
+              Computer Room 1: <div className=" ml-3 font-bold">
+              {crData["1F-CR1"]?.occupancy || 0}
+            </div>
+            </div>
+            
+          </div>
+        );
+      } else if (zoneName === "Zone C") {
+        computerRoomInfo = (
+          <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
+            <div className="flex items-center text-[17px] font-semibold mb-1">
+            Computer Room 2: <div className=" ml-3 font-bold">
+              {crData["1F-CR2"]?.occupancy || 0}
+            </div>
+            </div>
+            
+          </div>
+        );
+      }
+    }
+    
     return (
       <div className="flex flex-col">
         <h3 className="lg:text-2xl xl:text-3xl font-bold mb-2">{zoneName}</h3>
@@ -345,18 +423,21 @@ const Viewer3 = () => {
             CO<sub>2</sub> {zoneData?.co2 || 580}
             <sub>ppm</sub>
           </div>
-          <div>{zoneData?.temp || 25} °C</div>
-          <div>{zoneData?.humidity || 64}%</div>
+          <div> <span className="pr-2">Temperature</span>{zoneData?.temp || 25} °C</div>
+          <div><span className=" pr-2">Humidity</span>{zoneData?.humidity || 64}%</div>
         </div>
+        
+        {/* Computer Room Info */}
+        {computerRoomInfo}
       </div>
     );
   };
-
+ 
   // Get the available zones for the current floor
   const getZonesForCurrentFloor = () => {
     return floorZoneMapping[activeFloor] || [];
   };
-
+ 
   return (
     <div>
       {/* Sidebar */}
@@ -365,7 +446,7 @@ const Viewer3 = () => {
         setIsSidebarOpen={setIsSidebarOpen}
         logout={logout}
       />
-
+ 
       {/* Header */}
       <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
         <div className="flex items-center h-full">
@@ -386,7 +467,7 @@ const Viewer3 = () => {
           className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
         />
       </header>
-
+ 
       {/* Content */}
       <div className="px-6 lg:px-14 xl:px-14 2xl:px-14 pb-6">
         {/* date and weather */}
@@ -404,7 +485,7 @@ const Viewer3 = () => {
             </div>
           )}
         </div>
-
+ 
         {/* viewer section */}
         <div className="rounded-xl border border-[#E2E2E4] shadow-[0_1px_2px_0_#dedede] bg-white">
           {/* title*/}
@@ -412,7 +493,7 @@ const Viewer3 = () => {
             <p className="lg:text-3xl md:text-2xl sm:text-xl text-[22px] font-bold pb-2">
               Live Dashboard
             </p>
-
+ 
             {/* Floor navigation tabs */}
             <div className="flex space-x-4 border-b border-gray-200">
               {Object.keys(floorMaps).map((floor) => (
@@ -430,7 +511,7 @@ const Viewer3 = () => {
               ))}
             </div>
           </div>
-
+ 
           {/* viewer frame - show based on active floor */}
           <div className="px-4 w-full">
             <div className="relative w-full" style={{ paddingTop: "52.25%" }}>
@@ -442,7 +523,7 @@ const Viewer3 = () => {
               />
             </div>
           </div>
-
+ 
           {/* Zone information */}
           <div className="px-8 py-8 grid grid-cols-1 md:grid-cols-3 gap-8">
             {getZonesForCurrentFloor().map((zoneName) => (
@@ -453,7 +534,7 @@ const Viewer3 = () => {
               />
             ))}
           </div>
-
+ 
           {/* Legend */}
           <div className="sm:px-8 sm:py-6 mb-6 sm:mb-0 flex flex-col sm:flex-row items-left sm:justify-end justify-start sm:space-x-2 space-y-1 text-[16px]">
             <div className="flex items-center">
@@ -498,5 +579,5 @@ const Viewer3 = () => {
     </div>
   );
 };
-
+ 
 export default Viewer3;

@@ -161,6 +161,8 @@ const updateMenuItems = (role) => {
             name: "History & Trends",
             children: [
                 { name: "Analytics", path: "/analytics", icon: (<img width="20" height="20" src="https://img.icons8.com/pastel-glyph/64/analytics.png" alt="analytics"/>) },
+                { name: "Historical Data", path: "/historical", icon: (<img src='./time.png' width={20} height={20}  alt="historical"/>) },
+
             ],
         },
 

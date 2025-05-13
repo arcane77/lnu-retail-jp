@@ -7,14 +7,14 @@ import {
   Tooltip
 } from "recharts";
 
-// Component for displaying live building occupancy data
+// Component for displaying live entrance traffic data
 const LiveBuilding = () => {
   const [liveOccupancyData, setLiveOccupancyData] = useState({
     totalOccupancy: 0,
     avgOccupancyPercentage: 0,
     zoneCount: 0,
     floorData: {},
-    totalMaxCapacity: 0 // Add state for dynamic total capacity
+    totalMaxCapacity: 200 // Default capacity for Main Entrance
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,31 +34,39 @@ const LiveBuilding = () => {
       }
     } catch (err) {
       console.error("Error fetching live data:", err);
-      setError("Failed to fetch live occupancy data. Please try again later.");
+      setError("Failed to fetch live entrance data. Please try again later.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Process live data to get building-level metrics
+  // Process live data to get Main-Entrance metrics
   const processLiveData = (data) => {
+    // Filter to only include Main-Entrance data
+    const entranceData = data.filter(item => item.zone_name === "Main-Entrance");
+    
+    if (entranceData.length === 0) {
+      setLiveOccupancyData({
+        totalOccupancy: 0,
+        avgOccupancyPercentage: 0,
+        zoneCount: 0,
+        floorData: {},
+        totalMaxCapacity: 200 // Default capacity for Main Entrance
+      });
+      return;
+    }
+    
     // Group by floor
     const groupedByFloor = {};
-    let buildingTotalOccupancy = 0;
-    let buildingTotalPercentage = 0;
-    let buildingZoneCount = 0;
+    let entranceTotalOccupancy = 0;
+    let entranceTotalPercentage = 0;
+    let entranceZoneCount = 0;
     
     // Track floor max capacities
     const floorMaxCapacities = new Map();
 
-    data.forEach((item) => {
-      const { floor_id, zone_name, total_occupancy, occupancy_percentage, max_capacity } = item;
-
-      // Skip Main-Entrance zone and Relocated zone as requested
-      if (
-        zone_name === "Main-Entrance" ||
-        zone_name.toLowerCase() === "relocated"
-      ) return;
+    entranceData.forEach((item) => {
+      const { floor_id, total_occupancy, occupancy_percentage, max_capacity } = item;
 
       if (!groupedByFloor[floor_id]) {
         groupedByFloor[floor_id] = {
@@ -71,28 +79,30 @@ const LiveBuilding = () => {
 
       // Get floor max capacity from API data if not already set
       if (!floorMaxCapacities.has(floor_id)) {
-        floorMaxCapacities.set(floor_id, max_capacity || 0);
-        groupedByFloor[floor_id].maxCapacity = max_capacity || 0;
+        floorMaxCapacities.set(floor_id, max_capacity || 200);
+        groupedByFloor[floor_id].maxCapacity = max_capacity || 200;
       }
 
-      // Use exact data from API for all calculations, including negative values
-      groupedByFloor[floor_id].totalOccupancy += total_occupancy;
-      buildingTotalOccupancy += total_occupancy;
+      // Use exact data from API for all calculations, ensuring non-negative values
+      const adjustedOccupancy = Math.max(0, total_occupancy);
+      groupedByFloor[floor_id].totalOccupancy += adjustedOccupancy;
+      entranceTotalOccupancy += adjustedOccupancy;
 
-      // Use exact occupancy percentage from API
-      groupedByFloor[floor_id].totalPercentage += occupancy_percentage;
-      buildingTotalPercentage += occupancy_percentage;
+      // Use exact occupancy percentage from API, ensuring non-negative values
+      const adjustedPercentage = Math.max(0, occupancy_percentage);
+      groupedByFloor[floor_id].totalPercentage += adjustedPercentage;
+      entranceTotalPercentage += adjustedPercentage;
 
       // Add to zone count (used for averaging)
       groupedByFloor[floor_id].zoneCount++;
-      buildingZoneCount++;
+      entranceZoneCount++;
     });
 
-    // Calculate total building max capacity by summing each floor's capacity
+    // Calculate total entrance max capacity by summing each floor's capacity
     const totalMaxCapacity = Array.from(floorMaxCapacities.values()).reduce(
       (sum, capacity) => sum + capacity,
       0
-    );
+    ) || 200; // Fallback to default if no data
 
     // Calculate average percentages for each floor
     Object.keys(groupedByFloor).forEach((floorId) => {
@@ -103,16 +113,16 @@ const LiveBuilding = () => {
         floor.zoneCount > 0 ? floor.totalPercentage / floor.zoneCount : 0;
     });
 
-    // Calculate building average occupancy percentage
-    const buildingAvgOccupancyPercentage = 
-      buildingZoneCount > 0 ? buildingTotalPercentage / buildingZoneCount : 0;
+    // Calculate entrance average occupancy percentage
+    const entranceAvgOccupancyPercentage = 
+      entranceZoneCount > 0 ? entranceTotalPercentage / entranceZoneCount : 0;
 
     setLiveOccupancyData({
-      totalOccupancy: buildingTotalOccupancy,
-      avgOccupancyPercentage: buildingAvgOccupancyPercentage,
-      zoneCount: buildingZoneCount,
+      totalOccupancy: entranceTotalOccupancy,
+      avgOccupancyPercentage: entranceAvgOccupancyPercentage,
+      zoneCount: entranceZoneCount,
       floorData: groupedByFloor,
-      totalMaxCapacity: totalMaxCapacity // Store calculated max capacity
+      totalMaxCapacity: totalMaxCapacity
     });
   };
 
@@ -129,7 +139,7 @@ const LiveBuilding = () => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Live Building Occupancy
+        Live Occupancy
       </h2>
       {loading ? (
         <div className="flex justify-center items-center h-48">
@@ -142,7 +152,7 @@ const LiveBuilding = () => {
       ) : (
         <div className="flex flex-col items-center">
           <div>
-            <PieChart width={480} height={220}>
+            <PieChart width={480} height={240}>
               <Pie
                 data={[
                   {

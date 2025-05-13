@@ -2,26 +2,35 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./Sidebar";
 import HourlyZoneOccupancy from "./HourlyZoneOccupancy";
-import LiveZone from "./LiveZone"; // Import the new LiveZone component
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  Tooltip, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Legend, 
-  ResponsiveContainer 
+import LiveZone from "./LiveZone";
+import PeakZoneDaily from "./PeakZoneDaily";
+import AvgZoneDaily from "./AvgZoneDaily";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
 } from "recharts";
 import axios from "axios";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { format, parseISO } from "date-fns";
+import {
+  format,
+  parseISO,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+} from "date-fns";
 
-// Define zone mapping for standardization
+// Define zone mapping for standardization - Remove Main-Entrance
 const zoneMapping = {
   "South-zone": "Zone A",
   "South-Zone": "Zone A",
@@ -29,28 +38,23 @@ const zoneMapping = {
   "Central-Zone": "Zone B",
   "North-zone": "Zone C",
   "North-Zone": "Zone C",
-  "Main-Entrance": "Main Entrance",
 };
 
-// All available zones - Main Entrance is kept as a separate zone
-const zones = ["Zone A", "Zone B", "Zone C", "Main Entrance"]; 
+// All available zones - Main Entrance removed
+const zones = ["Zone A", "Zone B", "Zone C"];
 
 // Available floors for filtering
-const floors = ["All Floors", "1F", "2F", "3F", "MF"];
+const floors = ["1F", "2F", "3F", "MF"];
 
 // Define which zones are available on which floors
 const floorZoneMapping = {
   "1F": ["Zone A", "Zone B", "Zone C"],
   "2F": ["Zone A", "Zone B", "Zone C"],
   "3F": ["Zone B"],
-  "MF": ["Zone A", "Zone C"],
-  "All Floors": ["Zone A", "Zone B", "Zone C", "Main Entrance"],
+  MF: ["Zone A", "Zone C"],
 };
 
-// Flag to determine if we're showing the Main Entrance zone
-const isMainEntranceView = (zone) => zone === "Main Entrance";
-
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
+const COLORS = ["#0088FE", "#82C0CC", "#FFBB28", "#FF8042", "#8884D8"];
 
 // Custom tooltip component for bar chart
 const CustomBarTooltip = ({ active, payload, label }) => {
@@ -59,10 +63,12 @@ const CustomBarTooltip = ({ active, payload, label }) => {
       <div className="bg-white p-4 border border-gray-200 shadow-md rounded-md">
         <p className="font-bold text-gray-800">{label}</p>
         <p className="text-blue-600">
-          <span className="font-medium">Average Occupancy:</span> {payload[0].value.toFixed(2)}%
+          <span className="font-medium">Average Occupancy:</span>{" "}
+          {payload[0].value.toFixed(2)}%
         </p>
-        <p className="text-green-600">
-          <span className="font-medium">Peak Occupancy:</span> {Math.round(payload[0].payload.peakOccupancy)}
+        <p className="text-[#82C0CC]">
+          <span className="font-medium">Peak Occupancy:</span>{" "}
+          {Math.round(payload[0].payload.peakOccupancy)}
         </p>
       </div>
     );
@@ -74,12 +80,13 @@ const ZoneAnalytics = () => {
   const { logout } = useAuth0();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedZone, setSelectedZone] = useState("Zone A");
-  const [selectedFloor, setSelectedFloor] = useState("All Floors"); // New state for floor selection
-  
+  const [selectedFloor, setSelectedFloor] = useState("1F");
+
   // Get available zones for the selected floor
   const availableZones = useMemo(() => {
-    return floorZoneMapping[selectedFloor] || zones;
+    return floorZoneMapping[selectedFloor] || [];
   }, [selectedFloor]);
+
   const [zoneData, setZoneData] = useState({});
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState("daily");
@@ -87,12 +94,9 @@ const ZoneAnalytics = () => {
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
   const [error, setError] = useState(null);
-  
+
   // Store raw API data
   const [rawApiData, setRawApiData] = useState([]);
-  
-  // Store live data for Main Entrance zone
-  const [mainEntranceLiveData, setMainEntranceLiveData] = useState(null);
 
   // Helper function to format date to YYYY-MM-DD
   const formatDate = (date) => {
@@ -109,8 +113,24 @@ const ZoneAnalytics = () => {
         startDate: formatDate(selectedDate),
         endDate: formatDate(selectedDate),
       };
+    } else if (reportType === "weekly") {
+      // Calculate Sunday-Saturday week containing the selected date
+      const week_start = startOfWeek(selectedDate);
+      const week_end = endOfWeek(selectedDate);
+      return {
+        startDate: formatDate(week_start),
+        endDate: formatDate(week_end),
+      };
+    } else if (reportType === "monthly") {
+      // Calculate first-last day of month containing the selected date
+      const month_start = startOfMonth(selectedDate);
+      const month_end = endOfMonth(selectedDate);
+      return {
+        startDate: formatDate(month_start),
+        endDate: formatDate(month_end),
+      };
     } else {
-      // For weekly and monthly, use the explicitly selected start and end dates
+      // For custom, use the explicitly selected start and end dates
       return {
         startDate: formatDate(startDate),
         endDate: formatDate(endDate),
@@ -142,35 +162,22 @@ const ZoneAnalytics = () => {
   useEffect(() => {
     if (reportType === "daily") {
       // For daily, just use the selected date
-      // No need to change anything
+      setStartDate(selectedDate);
+      setEndDate(selectedDate);
     } else if (reportType === "weekly") {
-      // Set default week range
-      const currentDate = new Date(selectedDate);
-      const startOfWeek = new Date(currentDate);
-      startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + 6);
-
-      setStartDate(startOfWeek);
-      setEndDate(endOfWeek);
+      // Set default week range (Sunday-Saturday)
+      const week_start = startOfWeek(selectedDate);
+      const week_end = endOfWeek(selectedDate);
+      setStartDate(week_start);
+      setEndDate(week_end);
     } else if (reportType === "monthly") {
-      // Set default month range
-      const currentDate = new Date(selectedDate);
-      const startOfMonth = new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth(),
-        1
-      );
-      const endOfMonth = new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() + 1,
-        0
-      );
-
-      setStartDate(startOfMonth);
-      setEndDate(endOfMonth);
+      // Set default month range (first-last day)
+      const month_start = startOfMonth(selectedDate);
+      const month_end = endOfMonth(selectedDate);
+      setStartDate(month_start);
+      setEndDate(month_end);
     }
+    // For custom, don't change dates automatically
   }, [reportType, selectedDate]);
 
   // Fetch historical data from API
@@ -196,35 +203,6 @@ const ZoneAnalytics = () => {
       setLoading(false);
     }
   };
-  
-  // Fetch live data for Main Entrance
-  const fetchLiveData = async () => {
-    if (selectedZone === "Main Entrance") {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await axios.get(
-          `https://njs-01.optimuslab.space/lnu-footfall/floor-zone/live`
-        );
-
-        if (response.data && Array.isArray(response.data)) {
-          // Find the Main-Entrance entry in the array
-          const mainEntranceData = response.data.find(item => 
-            item.zone_name === "Main-Entrance"
-          );
-          
-          // Don't modify negative values - keep them as is
-          setMainEntranceLiveData(mainEntranceData || null);
-        }
-      } catch (err) {
-        console.error("Error fetching live data:", err);
-        setError("Failed to fetch live data for Main Entrance. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
 
   // Process API data and group by zones
   const processApiData = (data) => {
@@ -234,22 +212,31 @@ const ZoneAnalytics = () => {
     data.forEach((item) => {
       const { floor_id, zone_name, data: zoneData } = item;
 
-      // Completely ignore Relocated zone
-      if (zone_name.toLowerCase() === "relocated") return;
+      // Skip Relocated zone and Main-Entrance zone
+      if (
+        zone_name.toLowerCase() === "relocated" ||
+        zone_name === "Main-Entrance"
+      )
+        return;
 
-      // Apply floor filter
-      if (selectedFloor !== "All Floors" && floor_id !== selectedFloor) {
+      // Apply floor filter - only include data for the selected floor
+      if (floor_id !== selectedFloor) {
         return; // Skip data that doesn't match the selected floor
       }
 
       // Get the standardized zone name
       const standardizedZoneName = zoneMapping[zone_name] || zone_name;
 
+      // Skip if not one of our standard zones
+      if (!zones.includes(standardizedZoneName)) return;
+
       if (!groupedByZone[standardizedZoneName]) {
         groupedByZone[standardizedZoneName] = {
           floors: [],
           totalOccupancy: 0,
-          peakOccupancy: 0, // Initialize peak occupancy to 0
+          peakOccupancy: 0,
+          peakFloor: null, // Track which floor had the peak
+          peakDate: null, // Track the date of peak occupancy
           totalPercentage: 0,
           dataCount: 0,
         };
@@ -266,10 +253,14 @@ const ZoneAnalytics = () => {
 
         // Use exact data from API for all calculations, including negative values
         groupedByZone[standardizedZoneName].totalOccupancy += total_occupancy;
-        
-        // Update peak occupancy if this value is higher
-        if (total_occupancy > groupedByZone[standardizedZoneName].peakOccupancy) {
+
+        // Update peak occupancy if this value is higher (tracking floor and date)
+        if (
+          total_occupancy > groupedByZone[standardizedZoneName].peakOccupancy
+        ) {
           groupedByZone[standardizedZoneName].peakOccupancy = total_occupancy;
+          groupedByZone[standardizedZoneName].peakFloor = floor_id;
+          groupedByZone[standardizedZoneName].peakDate = timestamp;
         }
 
         // Use exact occupancy percentage from API
@@ -321,11 +312,6 @@ const ZoneAnalytics = () => {
 
   // Update selected zone when floor changes to ensure we have a valid zone for that floor
   useEffect(() => {
-    // Skip for Main Entrance which is always available
-    if (isMainEntranceView(selectedZone)) {
-      return;
-    }
-    
     // Check if current selected zone is available in the new floor selection
     if (!availableZones.includes(selectedZone)) {
       // If not available, select the first available zone
@@ -335,37 +321,26 @@ const ZoneAnalytics = () => {
 
   // Update data when relevant states change
   useEffect(() => {
-    if (!isMainEntranceView(selectedZone)) {
-      fetchData();
-    }
-  }, [reportType, selectedZone, selectedFloor]); // Added selectedFloor dependency
+    fetchData();
+  }, [reportType, selectedZone, selectedFloor]);
 
   // Fetch data when date selection changes
   useEffect(() => {
-    if (reportType === "daily" && !isMainEntranceView(selectedZone)) {
+    if (
+      reportType === "daily" ||
+      reportType === "weekly" ||
+      reportType === "monthly"
+    ) {
       fetchData();
     }
-  }, [selectedDate, selectedZone, selectedFloor]); // Added selectedFloor dependency
+  }, [selectedDate, selectedZone, selectedFloor]);
 
-  // Fetch data when date range changes for weekly/monthly
+  // Fetch data when date range changes for custom
   useEffect(() => {
-    if (reportType !== "daily" && !isMainEntranceView(selectedZone)) {
+    if (reportType === "custom") {
       fetchData();
     }
-  }, [startDate, endDate, selectedZone, selectedFloor]); // Added selectedFloor dependency
-  
-  // Fetch live data when Main Entrance is selected
-  useEffect(() => {
-    if (isMainEntranceView(selectedZone)) {
-      fetchLiveData();
-      
-      // Set up polling for live data every 30 seconds when viewing Main Entrance
-      const intervalId = setInterval(fetchLiveData, 30000);
-      
-      // Clean up interval on unmount or when zone changes
-      return () => clearInterval(intervalId);
-    }
-  }, [selectedZone]);
+  }, [startDate, endDate, selectedZone, selectedFloor]);
 
   // Prepare data for selected zone
   const selectedZoneData = zoneData[selectedZone] || {
@@ -375,31 +350,56 @@ const ZoneAnalytics = () => {
     floors: [],
   };
 
-  // Process data for the bar chart - Modified to properly handle the selected zone and floor
+  // Process data for the bar chart - Modified to handle the selected zone and floor
   const barChartData = useMemo(() => {
     if (!rawApiData || rawApiData.length === 0) {
       return [];
     }
 
-    // Create a map to store aggregate data by date
-    const dateMap = new Map();
+    // Create a map to store data by DATE (not full timestamp)
+    const dailyMap = new Map();
 
+    // First, pre-fill the map with all dates in the selected range
+    // This ensures we have entries for every day, even if no data exists
+    const { startDate, endDate } = getDateRange();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    for (
+      let day = new Date(start);
+      day <= end;
+      day.setDate(day.getDate() + 1)
+    ) {
+      const dateStr = formatDate(day);
+      dailyMap.set(dateStr, {
+        date: dateStr,
+        totalOccupancy: 0,
+        peakOccupancy: 0,
+        totalPercentage: 0,
+        count: 0,
+      });
+    }
+
+    // Now process the actual data
     rawApiData.forEach((item) => {
       const { zone_name, floor_id, data: zoneData } = item;
 
-      // Skip Relocated zone
-      if (zone_name.toLowerCase() === "relocated") {
+      // Skip Relocated zone and Main Entrance
+      if (
+        zone_name.toLowerCase() === "relocated" ||
+        zone_name === "Main-Entrance"
+      ) {
         return;
       }
 
-      // Apply floor filter
-      if (selectedFloor !== "All Floors" && floor_id !== selectedFloor) {
-        return; // Skip data that doesn't match the selected floor
+      // Apply floor filter - only include data for the selected floor
+      if (floor_id !== selectedFloor) {
+        return;
       }
 
       // Get the standardized zone name
       const standardizedZoneName = zoneMapping[zone_name] || zone_name;
-      
+
       // Only consider the selected zone
       if (standardizedZoneName !== selectedZone) {
         return;
@@ -408,46 +408,49 @@ const ZoneAnalytics = () => {
       // Process each timestamp entry
       zoneData.forEach((entry) => {
         const { timestamp, total_occupancy, occupancy_percentage } = entry;
-        
-        if (!dateMap.has(timestamp)) {
-          dateMap.set(timestamp, {
-            date: timestamp,
-            totalOccupancy: 0,
-            peakOccupancy: 0,
-            totalPercentage: 0,
-            zoneCount: 0
-          });
+
+        // Extract just the date part for grouping by day
+        const datePart = timestamp.split("T")[0]; // Gets YYYY-MM-DD
+
+        // Skip if outside our pre-filled date range
+        if (!dailyMap.has(datePart)) {
+          return;
         }
-        
-        // Add data to the map
-        const dateEntry = dateMap.get(timestamp);
+
+        // Get the entry for this date
+        const dateEntry = dailyMap.get(datePart);
+
+        // Add to total occupancy and percentage
         dateEntry.totalOccupancy += total_occupancy;
-        
-        // Track peak occupancy (maximum value) for this date
+        dateEntry.totalPercentage += occupancy_percentage;
+
+        // Update peak if this is higher
         if (total_occupancy > dateEntry.peakOccupancy) {
           dateEntry.peakOccupancy = total_occupancy;
         }
-        
-        dateEntry.totalPercentage += occupancy_percentage;
-        dateEntry.zoneCount += 1;
+
+        // Count data points for this day
+        dateEntry.count += 1;
       });
     });
-    
-    // Calculate average percentages and convert to array
-    const result = Array.from(dateMap.values()).map(entry => ({
-      date: entry.date,
-      averageOccupancy: entry.zoneCount > 0 ? entry.totalPercentage / entry.zoneCount : 0,
-      peakOccupancy: entry.peakOccupancy
-    }));
-    
-    return result.sort((a, b) => a.date.localeCompare(b.date));
-  }, [rawApiData, selectedZone, selectedFloor]); // Added selectedFloor dependency
 
-  // Find maximum average occupancy for Y-axis scaling
+    // Calculate daily averages and convert to array
+    const result = Array.from(dailyMap.values()).map((entry) => ({
+      date: entry.date,
+      averageOccupancy:
+        entry.count > 0 ? entry.totalPercentage / entry.count : 0,
+      peakOccupancy: entry.peakOccupancy,
+    }));
+
+    // Sort by date chronologically
+    return result.sort((a, b) => a.date.localeCompare(b.date));
+  }, [rawApiData, selectedZone, selectedFloor, getDateRange]);
+
+  // Update the Y-axis max calculation for better scaling
   const maxAvgOccupancy = useMemo(() => {
     if (barChartData.length === 0) return 5; // Default value
-    
-    const max = Math.max(...barChartData.map(item => item.averageOccupancy));
+
+    const max = Math.max(...barChartData.map((item) => item.averageOccupancy));
     // Round up to nearest 5
     return Math.ceil(max / 5) * 5;
   }, [barChartData]);
@@ -534,53 +537,131 @@ const ZoneAnalytics = () => {
                     >
                       Monthly
                     </button>
+                    <button
+                      className={`px-4 py-2 rounded-md ${
+                        reportType === "custom"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-800"
+                      }`}
+                      onClick={() => setReportType("custom")}
+                    >
+                      Custom
+                    </button>
                   </div>
                 </div>
 
-                {/* Date Selection - with specific spacing */}
+                {/* Date Selection - with specific spacing and calendar icon */}
                 <div className="md:ml-16">
-                  {reportType === "daily" ? (
+                  {/* For Today, Weekly and Monthly - use a single date picker */}
+                  {(reportType === "daily" ||
+                    reportType === "weekly" ||
+                    reportType === "monthly") && (
                     <div className="mb-4 md:mb-0">
                       <label className="text-sm text-gray-600 mb-1 block">
-                        Select Date
+                        {reportType === "daily"
+                          ? "Select Date"
+                          : reportType === "weekly"
+                          ? "Select Week"
+                          : "Select Month"}
                       </label>
-                      <DatePicker
-                        selected={selectedDate}
-                        onChange={(date) => setSelectedDate(date)}
-                        dateFormat="yyyy-MM-dd"
-                        className="border border-gray-300 rounded-md px-3 py-2"
-                      />
+                      <div className="flex items-center relative">
+                        <DatePicker
+                          selected={selectedDate}
+                          onChange={(date) => setSelectedDate(date)}
+                          dateFormat="yyyy-MM-dd"
+                          className="border border-gray-300 rounded-md px-3 py-2 pl-9"
+                          showMonthYearPicker={reportType === "monthly"}
+                        />
+                        {/* Calendar Icon */}
+                        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5 text-gray-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {/* For Custom - use two date pickers with calendar icons */}
+                  {reportType === "custom" && (
                     <div className="flex flex-col md:flex-row">
-                      <div className="mb-4 md:mb-0">
+                      <div className="mb-4 md:mb-0 relative">
                         <label className="text-sm text-gray-600 mb-1 block">
                           Start Date
                         </label>
-                        <DatePicker
-                          selected={startDate}
-                          onChange={(date) => setStartDate(date)}
-                          selectsStart
-                          startDate={startDate}
-                          endDate={endDate}
-                          dateFormat="yyyy-MM-dd"
-                          className="border border-gray-300 rounded-md px-3 py-2"
-                        />
+                        <div className="relative">
+                          <DatePicker
+                            selected={startDate}
+                            onChange={(date) => setStartDate(date)}
+                            selectsStart
+                            startDate={startDate}
+                            endDate={endDate}
+                            dateFormat="yyyy-MM-dd"
+                            className="border border-gray-300 rounded-md px-3 py-2 pl-9"
+                          />
+                          {/* Calendar Icon */}
+                          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5 text-gray-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
                       </div>
-                      <div className="mb-4 md:mb-0 md:ml-6">
+                      <div className="mb-4 md:mb-0 md:ml-6 relative">
                         <label className="text-sm text-gray-600 mb-1 block">
                           End Date
                         </label>
-                        <DatePicker
-                          selected={endDate}
-                          onChange={(date) => setEndDate(date)}
-                          selectsEnd
-                          startDate={startDate}
-                          endDate={endDate}
-                          minDate={startDate}
-                          dateFormat="yyyy-MM-dd"
-                          className="border border-gray-300 rounded-md px-3 py-2"
-                        />
+                        <div className="relative">
+                          <DatePicker
+                            selected={endDate}
+                            onChange={(date) => setEndDate(date)}
+                            selectsEnd
+                            startDate={startDate}
+                            endDate={endDate}
+                            minDate={startDate}
+                            dateFormat="yyyy-MM-dd"
+                            className="border border-gray-300 rounded-md px-3 py-2 pl-9"
+                          />
+                          {/* Calendar Icon */}
+                          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5 text-gray-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -599,6 +680,91 @@ const ZoneAnalytics = () => {
             </div>
           </div>
 
+          {/* Date Info Banner */}
+          <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200">
+            <p className="text-blue-800 flex items-center">
+              <svg
+                className="pr-2"
+                xmlns="http://www.w3.org/2000/svg"
+                x="0px"
+                y="0px"
+                width="25"
+                height="25"
+                viewBox="0,0,256,256"
+              >
+                <g
+                  fill="#0e4a98"
+                  fillRule="nonzero"
+                  stroke="none"
+                  strokeWidth="1"
+                  strokeLinecap="butt"
+                  strokeLinejoin="miter"
+                  strokeMiterlimit="10"
+                  strokeDasharray=""
+                  strokeDashoffset="0"
+                  fontFamily="none"
+                  fontWeight="none"
+                  fontSize="none"
+                  textAnchor="none"
+                >
+                  <g transform="scale(5.12,5.12)">
+                    <path d="M25,2c-12.6907,0 -23,10.3093 -23,23c0,12.69071 10.3093,23 23,23c12.69071,0 23,-10.30929 23,-23c0,-12.6907 -10.30929,-23 -23,-23zM25,4c11.60982,0 21,9.39018 21,21c0,11.60982 -9.39018,21 -21,21c-11.60982,0 -21,-9.39018 -21,-21c0,-11.60982 9.39018,-21 21,-21zM25,11c-1.65685,0 -3,1.34315 -3,3c0,1.65685 1.34315,3 3,3c1.65685,0 3,-1.34315 3,-3c0,-1.65685 -1.34315,-3 -3,-3zM21,21v2h1h1v13h-1h-1v2h1h1h4h1h1v-2h-1h-1v-15h-1h-4z"></path>
+                  </g>
+                </g>
+              </svg>{" "}
+              {reportType === "daily" && (
+                <>
+                  Showing data for{" "}
+                  {selectedDate.toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </>
+              )}
+              {reportType === "weekly" && (
+                <>
+                  Showing weekly data:{" "}
+                  {startDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}{" "}
+                  -{" "}
+                  {endDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </>
+              )}
+              {reportType === "monthly" && (
+                <>
+                  Showing monthly data:{" "}
+                  {startDate.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </>
+              )}
+              {reportType === "custom" && (
+                <>
+                  Showing custom date range:{" "}
+                  {startDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}{" "}
+                  -{" "}
+                  {endDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </>
+              )}
+            </p>
+          </div>
+
           {/* Zone and Floor Tabs */}
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             {/* Zone Selection */}
@@ -613,27 +779,29 @@ const ZoneAnalytics = () => {
                       className={`px-4 py-2 rounded-md ${
                         selectedZone === zone
                           ? "bg-blue-600 text-white"
-                          : isAvailable 
-                            ? "bg-gray-200 text-gray-800" 
-                            : "bg-gray-100 text-gray-400"
+                          : isAvailable
+                          ? "bg-gray-200 text-gray-800"
+                          : "bg-gray-100 text-gray-400"
                       }`}
                       onClick={() => isAvailable && setSelectedZone(zone)}
                       disabled={!isAvailable}
-                      title={!isAvailable ? `${zone} is not available on floor ${selectedFloor}` : ""}
+                      title={
+                        !isAvailable
+                          ? `${zone} is not available on floor ${selectedFloor}`
+                          : ""
+                      }
                     >
                       {zone}
                       {!isAvailable && (
-                        <span className="ml-1 text-xs">
-                          (N/A)
-                        </span>
+                        <span className="ml-1 text-xs">(N/A)</span>
                       )}
                     </button>
                   );
                 })}
               </div>
             </div>
-            
-            {/* Floor Selection - New Feature */}
+
+            {/* Floor Selection */}
             <div>
               <h3 className="text-sm text-gray-600 mb-2">Select Floor</h3>
               <div className="flex flex-wrap gap-2">
@@ -646,17 +814,11 @@ const ZoneAnalytics = () => {
                         : "bg-gray-200 text-gray-800"
                     }`}
                     onClick={() => setSelectedFloor(floor)}
-                    disabled={isMainEntranceView(selectedZone)} // Disable floor selection for Main Entrance
                   >
                     {floor}
                   </button>
                 ))}
               </div>
-              {isMainEntranceView(selectedZone) && (
-                <p className="text-sm text-gray-500 mt-2">
-                  Floor selection is not applicable for Main Entrance view
-                </p>
-              )}
             </div>
           </div>
 
@@ -669,211 +831,117 @@ const ZoneAnalytics = () => {
             <div className="bg-white rounded-lg shadow-md p-8">
               <p className="text-red-500">{error}</p>
             </div>
-          ) : isMainEntranceView(selectedZone) ? (
-            // Main Entrance View - Only show Live Occupancy
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6 text-center">
-                Main Entrance - Live Occupancy
-              </h2>
-              
-              {mainEntranceLiveData ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-full md:w-2/3 mx-auto">
-                    <PieChart width={580} height={280}>
-                      <Pie
-                        data={[
-                          {
-                            name: "Occupied",
-                            value: mainEntranceLiveData.total_occupancy,
-                          },
-                          {
-                            name: "Available",
-                            value: mainEntranceLiveData.max_capacity - mainEntranceLiveData.total_occupancy,
-                          },
-                        ]}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={80}
-                        outerRadius={120}
-                        fill="#8884d8"
-                        dataKey="value"
-                        labelLine={false}
-                        label={({ name, percent }) =>
-                          `${name}: ${Math.round(percent * 100)}%`
-                        }
-                      >
-                        <Cell key="occupied" fill="#0088FE" />
-                        <Cell key="available" fill="#dadada" />
-                      </Pie>
-                      <Tooltip formatter={(value) => Math.round(value)} />
-                    </PieChart>
-                  </div>
-                  
-                  <div className="text-center mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="bg-blue-50 p-6 rounded-lg shadow-sm">
-                        <p className="text-5xl font-bold text-blue-600">
-                          {/* Show the actual API value even if negative */}
-                          {mainEntranceLiveData.total_occupancy}
-                        </p>
-                        <p className="text-gray-700 text-lg mt-2">Current Occupancy</p>
-                      </div>
-                      
-                      <div className="bg-green-50 p-6 rounded-lg shadow-sm">
-                        <p className="text-5xl font-bold text-green-600">
-                          {`${mainEntranceLiveData.occupancy_percentage.toFixed(2)}%`}
-                        </p>
-                        <p className="text-gray-700 text-lg mt-2">Occupancy Rate</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center p-10">
-                  <p className="text-lg text-gray-600">No live data available for Main Entrance</p>
-                  <button 
-                    className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    onClick={fetchLiveData}
-                  >
-                    Try Again
-                  </button>
-                </div>
-              )}
-            </div>
           ) : (
-            // Normal Zone View (Zone A, B, C)
             <>
-              {/* Floor info banner when floor is selected */}
-              {selectedFloor !== "All Floors" && (
-                <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200">
-                  <p className="text-blue-800 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2h2a1 1 0 100-2H9z" clipRule="evenodd" />
-                    </svg>
-                    Showing data for {selectedZone} on floor {selectedFloor} only
-                    {selectedFloor !== "All Floors" && (
-                      <span className="ml-2 text-xs bg-blue-100 px-2 py-1 rounded">
-                        Available zones on {selectedFloor}: {floorZoneMapping[selectedFloor].join(", ")}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
+              {/* Metrics Grid */}
+              <div
+                className={`grid grid-cols-1 ${
+                  reportType === "daily" ? "md:grid-cols-3" : "md:grid-cols-2"
+                } gap-6 mb-6`}
+              >
+                {/* Live Occupancy Card - Only shown for "daily" report type */}
+                {reportType === "daily" && (
+                  <LiveZone
+                    selectedZone={selectedZone}
+                    selectedFloor={selectedFloor}
+                  />
+                )}
 
-              {/* Metrics Grid - Now with 3 columns including LiveZone */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                {/* Live Occupancy Card */}
-                <LiveZone selectedZone={selectedZone} selectedFloor={selectedFloor} />
-
-                {/* Peak Occupancy Card (Changed from Total Occupancy) */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                    Peak Occupancy
-                  </h2>
-                  <div className="flex flex-col items-center">
-                    <div>
-                      <PieChart width={480} height={240}>
-                        <Pie
-                          data={[
-                            {
-                              name: "Occupied",
-                              value: Math.max(
-                                0,
-                                selectedZoneData.peakOccupancy
-                              ),
-                            },
-                            {
-                              name: "Available",
-                              value: Math.max(
-                                0,
-                                getMaxCapacity(selectedZoneData) -
-                                  Math.max(0, selectedZoneData.peakOccupancy)
-                              ),
-                            },
-                          ]}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          labelLine={false}
-                          label={({ name, percent }) =>
-                            `${name}: ${Math.round(percent * 100)}%`
-                          }
-                        >
-                          <Cell key="occupied" fill="#0088FE" />
-                          <Cell key="available" fill="#dadada" />
-                        </Pie>
-                        <Tooltip formatter={(value) => Math.round(value)} />
-                      </PieChart>
-                    </div>
-                    <div className="w-full mt-4 flex flex-col items-center justify-center">
-                      <p className="text-4xl font-bold text-blue-600">
-                        {Math.round(
-                          Math.max(0, selectedZoneData.peakOccupancy)
-                        )}
-                      </p>
-                      <p className="text-gray-600">Peak People</p>
+                {/* Peak Occupancy Card with conditional rendering */}
+                {reportType === "daily" ? (
+                  <PeakZoneDaily
+                    selectedZone={selectedZone}
+                    selectedDate={selectedDate}
+                    selectedFloor={selectedFloor}
+                  />
+                ) : (
+                  <div className="bg-white rounded-lg shadow-md p-6">
+                    <h2 className="text-lg font-semibold text-gray-800 mb-4">
+                      Peak Occupancy
+                    </h2>
+                    <div className="flex flex-col items-center">
+                      <div>
+                        <PieChart width={480} height={240}>
+                          <Pie
+                            data={[
+                              {
+                                name: "Occupied",
+                                value: Math.max(
+                                  0,
+                                  selectedZoneData.peakOccupancy
+                                ),
+                              },
+                              {
+                                name: "Available",
+                                value: Math.max(
+                                  0,
+                                  getMaxCapacity(selectedZoneData) -
+                                    Math.max(0, selectedZoneData.peakOccupancy)
+                                ),
+                              },
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            labelLine={false}
+                            label={({ name, percent }) =>
+                              `${name}: ${Math.round(percent * 100)}%`
+                            }
+                          >
+                            <Cell key="occupied" fill="#0088FE" />
+                            <Cell key="available" fill="#dadada" />
+                          </Pie>
+                          <Tooltip formatter={(value) => Math.round(value)} />
+                        </PieChart>
+                      </div>
+                      <div className="w-full mt-4 flex flex-col items-center justify-center">
+                        <p className="text-4xl font-bold text-blue-600">
+                          {Math.round(
+                            Math.max(0, selectedZoneData.peakOccupancy)
+                          )}
+                        </p>
+                        <p className="text-gray-600">
+                          Peak Occupancy
+                          {selectedZoneData.peakDate && (
+                            <span className="ml-1">
+                              (
+                              {format(
+                                new Date(selectedZoneData.peakDate),
+                                "MMM d, yyyy"
+                              )}
+                              )
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Average Occupancy Card */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                    Average Occupancy
-                  </h2>
-                  <div className="flex flex-col items-center">
-                    <div>
-                      <PieChart width={480} height={240}>
-                        <Pie
-                          data={[
-                            {
-                              name: "Occupied",
-                              value: selectedZoneData.avgOccupancyPercentage,
-                            },
-                            {
-                              name: "Available",
-                              value:
-                                100 - selectedZoneData.avgOccupancyPercentage,
-                            },
-                          ]}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          labelLine={false}
-                          label={({ name, percent }) =>
-                            `${name}: ${(percent * 100).toFixed(2)}%`
-                          }
-                        >
-                          <Cell key="occupied" fill="#00C49F" />
-                          <Cell key="available" fill="#dadada" />
-                        </Pie>
-                        <Tooltip formatter={(value) => value.toFixed(2)} />
-                      </PieChart>
-                    </div>
-                    <div className="w-full mt-4 flex flex-col items-center justify-center">
-                      <p className="text-4xl font-bold text-green-600">
-                        {selectedZoneData.avgOccupancyPercentage.toFixed(2)}%
-                      </p>
-                      <p className="text-gray-600">Average Occupancy</p>
-                    </div>
-                  </div>
-                </div>
+                {/* Average Occupancy Card (always shown) */}
+                <AvgZoneDaily
+                  selectedZone={selectedZone}
+                  selectedFloor={selectedFloor}
+                  selectedDate={selectedDate}
+                  reportType={reportType}
+                />
               </div>
 
-              {/* Bar Graph Section - Only for Weekly and Monthly */}
+              {/* Bar Graph Section - Only for Weekly, Monthly, and Custom */}
               {reportType !== "daily" && barChartData.length > 0 && (
                 <div className="bg-white rounded-lg shadow-md p-6 mb-6">
                   <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                    {reportType === "weekly" ? "Weekly" : "Monthly"} {selectedZone} Occupancy Trends
-                    {selectedFloor !== "All Floors" && ` - Floor ${selectedFloor}`}
+                    {reportType === "weekly"
+                      ? "Weekly"
+                      : reportType === "monthly"
+                      ? "Monthly"
+                      : "Custom"}{" "}
+                    {selectedZone} Occupancy Trends - Floor {selectedFloor}
                   </h2>
-                  
+
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
@@ -881,42 +949,43 @@ const ZoneAnalytics = () => {
                         margin={{ top: 20, right: 20, left: 20, bottom: 30 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis 
-                          dataKey="date" 
+                        <XAxis
+                          dataKey="date"
                           tickFormatter={formatXAxis}
-                          angle={-45}
+                          angle={0}
                           textAnchor="end"
                           height={70}
                         />
-                        <YAxis 
-                          label={{ 
-                            value: 'Average Occupancy (%)', 
-                            angle: -90, 
-                            position: 'insideLeft',
-                            style: { textAnchor: 'middle' }
+                        <YAxis
+                          label={{
+                            value: "Average Occupancy (%)",
+                            angle: -90,
+                            position: "insideLeft",
+                            style: { textAnchor: "middle" },
                           }}
                           domain={[0, maxAvgOccupancy]}
                         />
                         <Tooltip content={<CustomBarTooltip />} />
                         <Legend />
-                        <Bar 
-                          dataKey="averageOccupancy" 
-                          name="Average Occupancy" 
-                          fill="#2463EB" 
+                        <Bar
+                          dataKey="averageOccupancy"
+                          name="Average Occupancy"
+                          fill="#2463EB"
                           radius={[4, 4, 0, 0]}
                           barSize={30}
                         />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  
                 </div>
               )}
+
+              {/* Hourly Data Section - Only for daily */}
               {reportType === "daily" && (
-                <HourlyZoneOccupancy 
-                  selectedDate={selectedDate} 
+                <HourlyZoneOccupancy
+                  selectedDate={selectedDate}
                   selectedZone={selectedZone}
-                  selectedFloor={selectedFloor} // Pass the selected floor to the hourly component
+                  selectedFloor={selectedFloor}
                 />
               )}
             </>

@@ -1,14 +1,47 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./Sidebar";
 import BuildingAnalytics from "./BuildingAnalytics";
 import Analytics from "./Analytics"; 
 import ZoneAnalytics from "./ZoneAnalytics";
+import axios from "axios";
 
 const MainAnalytics = () => {
   const { logout } = useAuth0();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("building"); // Default to building tab
+  const [buildingName, setBuildingName] = useState("Lingnan Library"); // Default value
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch building data on component mount
+  useEffect(() => {
+    const fetchBuildingData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(
+          "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices"
+        );
+        
+        // Find an item with new_building field
+        const buildingInfo = response.data.find(item => item.new_building);
+        if (buildingInfo && buildingInfo.new_building) {
+          setBuildingName(buildingInfo.new_building);
+        } else if (response.data.length > 0 && response.data[0].building) {
+          // Fallback to building field if new_building doesn't exist
+          setBuildingName(response.data[0].building);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching building data:", err);
+        setError("Failed to fetch building data");
+        setLoading(false);
+      }
+    };
+
+    fetchBuildingData();
+  }, []);
 
   // Tab switching handler
   const handleTabChange = (tab) => {
@@ -50,9 +83,13 @@ const MainAnalytics = () => {
           {/* Location & Title */}
           <div className="mb-6">
             <h4 className="text-lg text-gray-600 mb-1">Hong Kong SAR</h4>
-            <h2 className="text-3xl md:text-4xl font-semibold text-gray-800">
-              Lingnan Library
-            </h2>
+            {loading ? (
+              <div className="h-10 w-64 bg-gray-200 animate-pulse rounded"></div>
+            ) : (
+              <h2 className="text-3xl md:text-4xl font-semibold text-gray-800">
+                {buildingName}
+              </h2>
+            )}
           </div>
 
           {/* Modern Tabs */}
@@ -158,4 +195,3 @@ const MainAnalytics = () => {
 };
 
 export default MainAnalytics;
-
