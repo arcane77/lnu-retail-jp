@@ -64,6 +64,7 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
     // Group by floor and find max occupancy
     const peakByFloor = {};
 
+    // First pass: Initialize data structures for each floor
     data.forEach((item) => {
       const { floor_id, zone_name, data: zoneData } = item;
 
@@ -71,8 +72,9 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
       if (
         zone_name === "Main-Entrance" ||
         zone_name.toLowerCase() === "relocated"
-      )
+      ) {
         return;
+      }
 
       if (!peakByFloor[floor_id]) {
         peakByFloor[floor_id] = {
@@ -80,24 +82,20 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
           timestamp: null,
           maxCapacity: 0,
           peakHour: null,
-          peakZone: null // Track which zone had the peak
+          peakZone: null, // Track which zone had the peak
+          hourlyPeaksByTimestamp: {} // Track hourly peaks by timestamp
         };
       }
 
-      // Process data for each zone and timestamp
+      // Initialize tracking for each timestamp
       zoneData.forEach((entry) => {
-        const { timestamp, total_occupancy, max_capacity } = entry;
-
-        // Update peak occupancy if this value is higher
-        if (total_occupancy > peakByFloor[floor_id].peakOccupancy) {
-          peakByFloor[floor_id].peakOccupancy = total_occupancy;
-          peakByFloor[floor_id].timestamp = timestamp;
-          peakByFloor[floor_id].peakZone = zone_name; // Store zone name
-          
-          // Convert UTC timestamp to HKT (UTC+8)
-          const utcDate = new Date(timestamp);
-          const hktHour = (utcDate.getUTCHours() + 8) % 24; // Add 8 hours for HKT
-          peakByFloor[floor_id].peakHour = hktHour;
+        const { timestamp, max_capacity } = entry;
+        
+        if (!peakByFloor[floor_id].hourlyPeaksByTimestamp[timestamp]) {
+          peakByFloor[floor_id].hourlyPeaksByTimestamp[timestamp] = {
+            totalOccupancy: 0,
+            processedZones: new Set() // Track which zones we've already processed for this timestamp
+          };
         }
         
         // Track max capacity (any entry's max_capacity should work)
@@ -106,14 +104,86 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
         }
       });
     });
+    
+    // Second pass: Calculate aggregated occupancy per timestamp without duplicates
+    data.forEach((item) => {
+      const { floor_id, zone_name, data: zoneData } = item;
+      
+      // Skip Main-Entrance zone and Relocated zone
+      if (
+        zone_name === "Main-Entrance" ||
+        zone_name.toLowerCase() === "relocated"
+      ) {
+        return;
+      }
+      
+      // Skip if floor wasn't initialized
+      if (!peakByFloor[floor_id]) {
+        return;
+      }
+        
+      // Process each timestamp
+      zoneData.forEach((entry) => {
+        const { timestamp, total_occupancy } = entry;
+        const hourlyPeaks = peakByFloor[floor_id].hourlyPeaksByTimestamp;
+        
+        // Skip if we've already counted this zone for this timestamp
+        const zoneKey = `${zone_name}`;
+        if (hourlyPeaks[timestamp].processedZones.has(zoneKey)) {
+          return;
+        }
+        
+        // Mark this zone as processed for this timestamp
+        hourlyPeaks[timestamp].processedZones.add(zoneKey);
+        
+        // Add occupancy to the total for this timestamp
+        hourlyPeaks[timestamp].totalOccupancy += total_occupancy;
+      });
+    });
+    
+    // Now determine the peak hour based on the aggregated data
+    Object.keys(peakByFloor).forEach(floor_id => {
+      const floor = peakByFloor[floor_id];
+      const hourlyPeaks = floor.hourlyPeaksByTimestamp;
+      
+      // Find the timestamp with the highest occupancy
+      let maxOccupancy = 0;
+      let peakTimestamp = null;
+      
+      Object.entries(hourlyPeaks).forEach(([timestamp, data]) => {
+        if (data.totalOccupancy > maxOccupancy) {
+          maxOccupancy = data.totalOccupancy;
+          peakTimestamp = timestamp;
+        }
+      });
+      
+      // Update the floor's peak data if we found a valid peak
+      if (peakTimestamp) {
+        floor.peakOccupancy = maxOccupancy;
+        floor.timestamp = peakTimestamp;
+        
+        // Convert UTC timestamp to HKT (UTC+8)
+        const utcDate = new Date(peakTimestamp);
+        const hktHour = (utcDate.getUTCHours() + 8) % 24; // Add 8 hours for HKT
+        floor.peakHour = hktHour;
+        
+        // Find which zone had the highest occupancy at the peak time
+        // Since we can't easily determine this from our aggregated data,
+        // we'll leave peakZone as null for now
+        floor.peakZone = null;
+      }
+    });
 
     setHourlyPeakData(peakByFloor);
   };
 
-  // Process live data
+  // Process live data to prevent duplicate zone counting
   const processLiveData = (data) => {
     // Group by floor
     const groupedByFloor = {};
+    
+    // Map to track processed zones per floor
+    const processedZones = new Map();
 
     data.forEach((item) => {
       const { floor_id, zone_name, total_occupancy, max_capacity } = item;
@@ -122,8 +192,20 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
       if (
         zone_name === "Main-Entrance" ||
         zone_name.toLowerCase() === "relocated"
-      )
+      ) {
         return;
+      }
+      
+      // Create unique key for this floor-zone combination
+      const zoneKey = `${floor_id}-${zone_name}`;
+      
+      // Skip if we've already processed this zone for this floor
+      if (processedZones.has(zoneKey)) {
+        return;
+      }
+      
+      // Mark this zone as processed
+      processedZones.set(zoneKey, true);
 
       if (!groupedByFloor[floor_id]) {
         groupedByFloor[floor_id] = {

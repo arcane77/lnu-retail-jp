@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import Sidebar from "./Sidebar";
 
+
 // Mapping between MDR IDs and exit door IDs
 const mdrToExitMapping = {
   "MDR-001": "EX-1A1",
@@ -32,6 +33,7 @@ const mdrToExitMapping = {
   "MDR-024": "EX-3C5",
   "MDR-025": "EX-3A2",
 };
+
 
 // Initial emergency data structure
 const emergencyData = {
@@ -98,6 +100,7 @@ const SecurityView = () => {
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeEmergencies, setActiveEmergencies] = useState([]);
+  const [pirData, setPirData] = useState({ status: "normal", lastChecked: null });
   const [sortConfig, setSortConfig] = useState({
     key: "id",
     direction: "ascending",
@@ -145,6 +148,8 @@ const SecurityView = () => {
     }
     setSortConfig({ key, direction });
   };
+
+  
 
   // Update date and time
   useEffect(() => {
@@ -325,6 +330,58 @@ const SecurityView = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Fetch PIR sensor data
+useEffect(() => {
+  let isMounted = true;
+
+  const fetchPirData = async () => {
+    if (!isMounted) return;
+
+    try {
+      const response = await fetch("https://optimusc.flowfuse.cloud/pir");
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      if (!isMounted) return;
+
+      const data = await response.json();
+      
+      // Assuming PIR-001 is the sensor we're monitoring
+      if (data["PIR-001"]) {
+        setPirData({
+          status: data["PIR-001"].pir,
+          daylight: data["PIR-001"].daylight,
+          battery: data["PIR-001"].battery,
+          lastChecked: new Date().toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          })
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching PIR data:", error);
+    }
+  };
+
+  // Fetch immediately on component mount
+  fetchPirData();
+
+  // Set up polling interval (every 5 seconds)
+  const pollInterval = setInterval(fetchPirData, 5000);
+
+  // Clean up on component unmount
+  return () => {
+    isMounted = false;
+    clearInterval(pollInterval);
+  };
+}, []);
+
   // Format the emergency message based on active emergencies
   const getEmergencyMessage = () => {
     if (activeEmergencies.length === 0) {
@@ -424,6 +481,8 @@ const SecurityView = () => {
     Last updated: {lastUpdateTime}
   </p>
 
+  
+
   {/* flex column on small screens, row on lg+ */}
   <div className="w-full flex flex-col lg:flex-row lg:gap-8">
     {/* Emergency doors table */}
@@ -500,8 +559,45 @@ const SecurityView = () => {
       </div>
     </div>
   </div>
+  
 </div>
-
+{/* PIR Sensor Status Box - Always visible */}
+<div className={`w-full p-4 mb-4 rounded border-l-4 ${
+  pirData.status === "normal" 
+    ? "bg-green-100 border-green-500" 
+    : "bg-yellow-100 border-red-500"
+}`}>
+  <div className="flex">
+    <div className="flex-shrink-0">
+      {pirData.status === "normal" 
+        ? <CheckCircle className="h-5 w-5 text-green-500" /> 
+        : <AlertCircle className="h-5 w-5 text-red-500" />
+      }
+    </div>
+    <div className="ml-3">
+      <p className={`text-sm font-medium ${
+        pirData.status === "normal" 
+          ? "text-green-700" 
+          : "text-red-700"
+      }`}>
+        PIR Sensor Status
+      </p>
+      <p className={`text-sm ${
+        pirData.status === "normal" 
+          ? "text-green-600" 
+          : "text-red-600"
+      }`}>
+        {pirData.status === "normal" 
+          ? "No motion detected" 
+          : `Motion detected! (${pirData.status})`
+        }
+      </p>
+      <p className="text-xs text-gray-500 mt-1">
+        Battery: {pirData.battery || "Unknown"}% | Last checked: {pirData.lastChecked || "Unknown"}
+      </p>
+    </div>
+  </div>
+</div>
             
 
             <div className="rounded-xl shadow-md border border-gray-200 overflow-hidden bg-white w-full">

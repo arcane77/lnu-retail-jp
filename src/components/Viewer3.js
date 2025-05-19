@@ -3,7 +3,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { FaTemperatureHigh, FaTint, FaDesktop } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import useIAQData from "./IAQdata"; // Import the IAQ data service
+import useIAQData from "./IAQdata"; 
  
 const Viewer3 = () => {
   const currentDate = new Date();
@@ -89,11 +89,11 @@ const Viewer3 = () => {
       }
     };
     
-    // Fetch immediately
+    // fetch immediately
     fetchCRData();
     
-    // Then fetch every 10 seconds
-    const intervalId = setInterval(fetchCRData, 10 * 1000);
+    //  every 15 seconds
+    const intervalId = setInterval(fetchCRData, 20000);
     
     return () => clearInterval(intervalId);
   }, []);
@@ -234,14 +234,14 @@ const Viewer3 = () => {
       }
     };
  
-    // Fetch immediately on first render
+    //  first render
     fetchZoneData();
     
-    // Then fetch every 10 seconds
-    const intervalId = setInterval(fetchZoneData, 10 * 1000);
+    // every 15 seconds
+    const intervalId = setInterval(fetchZoneData, 20000);
     
     return () => clearInterval(intervalId);
-  }, [zoneIAQData]); // Added zoneIAQData as a dependency
+  }, [zoneIAQData]); 
  
   // Floor map URLs
   const floorMaps = {

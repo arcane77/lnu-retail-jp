@@ -34,10 +34,13 @@ const LiveFloor = ({ selectedFloor }) => {
     }
   };
 
-  // Process live data
+  // Process live data - FIXED VERSION
   const processLiveData = (data) => {
     // Group by floor
     const groupedByFloor = {};
+
+    // Create a map to track unique zones we've already processed
+    const processedZones = new Map();
 
     data.forEach((item) => {
       const { floor_id, zone_name, total_occupancy, occupancy_percentage, max_capacity } = item;
@@ -48,6 +51,15 @@ const LiveFloor = ({ selectedFloor }) => {
         zone_name.toLowerCase() === "relocated"
       )
         return;
+
+      // Create unique key for this floor-zone combination
+      const zoneKey = `${floor_id}-${zone_name}`;
+      
+      // Skip if we've already processed this zone for this floor
+      if (processedZones.has(zoneKey)) return;
+      
+      // Mark this zone as processed
+      processedZones.set(zoneKey, true);
 
       if (!groupedByFloor[floor_id]) {
         groupedByFloor[floor_id] = {
@@ -137,7 +149,7 @@ const LiveFloor = ({ selectedFloor }) => {
                     name: "Available",
                     value: Math.max(
                       0,
-                      (selectedFloorLiveData.zones[0]?.max_capacity ||
+                      (selectedFloorLiveData.zones.reduce((total, zone) => total + zone.max_capacity, 0) ||
                         9000) - selectedFloorLiveData.totalOccupancy
                     ),
                   },

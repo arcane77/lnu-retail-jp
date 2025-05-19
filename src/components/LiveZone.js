@@ -57,6 +57,9 @@ const LiveZone = ({ selectedZone, selectedFloor }) => {
   const processLiveData = (data) => {
     // Group by standardized zone names
     const groupedByZone = {};
+    
+    // Create a map to track unique floor-zone combinations we've already processed
+    const processedCombinations = new Map();
 
     data.forEach((item) => {
       const { zone_name, floor_id, total_occupancy, occupancy_percentage, max_capacity } = item;
@@ -71,6 +74,20 @@ const LiveZone = ({ selectedZone, selectedFloor }) => {
 
       // Get the standardized zone name
       const standardizedZoneName = zoneMapping[zone_name] || zone_name;
+      
+      // Create unique key for this floor-zone combination
+      const combinationKey = `${floor_id}-${standardizedZoneName}`;
+      
+      // For each floor, only process each standardized zone once
+      if (selectedFloor !== "All Floors") {
+        // If we're filtering by floor, ensure we don't count duplicate zones for that floor
+        if (processedCombinations.has(combinationKey)) return;
+        processedCombinations.set(combinationKey, true);
+      } else {
+        // If we're showing all floors, make sure each floor-zone combination is only counted once
+        if (processedCombinations.has(combinationKey)) return;
+        processedCombinations.set(combinationKey, true);
+      }
 
       if (!groupedByZone[standardizedZoneName]) {
         groupedByZone[standardizedZoneName] = {

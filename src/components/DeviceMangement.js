@@ -36,31 +36,54 @@ const DeviceManagement = () => {
 
   // Function to determine device type for sorting order and categorization
   const getDeviceType = (deviceId, devType) => {
-    // First check the device_type if it's explicitly related to occupancy
-    if (devType === "occupancy-1") {
+    // OCCUPANCY SENSORS - Exact list of 30
+    const occupancyDeviceIds = [
+      "1F-CR1-V01", "1F-CR1-V02", "1F-CR1-V03", "1F-CR1-V04", 
+      "1F-CR2-V01", "1F-CR2-V02", "1F-CR2-V03", "1F-CR2-V04",
+      "1F-LRR-V01", "1F-LRR-V02", "1F-LRR-V03", "1F-LRR-V04", "1F-LRR-V05",
+      "1F-NC-V01", "1F-SC-V01",
+      "3F-SC-V01", "3F-SC-V02", "3F-SC-V03", "3F-SC-V04", "3F-SC-V05",
+      "DS-01", "DS-02", "DS-03", "DS-04", "DS-05", "DS-06", "DS-07", 
+      "MF-SC-V01", "MF-SC-V02", "MF-SC-V03"
+    ];
+    
+    // FOOTFALL SENSORS - Exact list of the 21 unique IDs
+    const footfallDeviceIds = [
+      "1F-LRR-EX01", "1F-LRR-EX02", 
+      "1F-L-B01", "1F-ME-B01", "1F-Lobby-V01", "MF-S-B01", 
+      "1F-BF-B01", "1F-BF-B02", "1F-Lobby-V03", "MF-S-V03", 
+      "MF-S-V01", "MF-S-V02", 
+      "2F-S-V03", "2F-L-B01", "2F-S-V02", "2F-S-V04", "2F-S-V01", 
+      "3F-S-B01", "3F-L-V01", "3F-S-B02", 
+      "1F-ME-B02"
+    ];
+    
+    // Check occupancy first
+    if (occupancyDeviceIds.includes(deviceId)) {
       return "Occupancy Sensors";
     }
     
-    // Then check device ID patterns
-    if (deviceId.toLowerCase().includes("iaq")) return "IAQ Sensors";
-    if (deviceId.toLowerCase().startsWith("wl")) return "Water Leakage Sensors";
-    if (deviceId.startsWith("MDR-")) return "MDR Sensors";
-
-    // Enhanced Footfall Sensors detection
-    if (deviceId.toLowerCase().includes("footfall") || 
-      deviceId.toLowerCase().startsWith("ff") ||
-      deviceId.includes("LRR-EX") ||
-      deviceId.startsWith("1F-L") ||
-      deviceId.startsWith("1F-ME") ||
-      deviceId.startsWith("1F-BF") ||
-      deviceId.startsWith("1F-Lobby") ||
-      deviceId.startsWith("2F-S") ||
-      deviceId.startsWith("2F-L") ||
-      deviceId.startsWith("3F-S") ||
-      deviceId.startsWith("3F-L") ||
-      deviceId.startsWith("MF-S")) return "Footfall Sensors";
-
-    // If none of the specific types match, we'll return null to filter it out later
+    // Then check footfall
+    if (footfallDeviceIds.includes(deviceId)) {
+      return "Footfall Sensors";
+    }
+    
+    // IAQ Sensors
+    if (deviceId.toLowerCase().includes("iaq")) {
+      return "IAQ Sensors";
+    }
+    
+    // Water Leakage Sensors
+    if (deviceId.toLowerCase().startsWith("wl")) {
+      return "Water Leakage Sensors";
+    }
+    
+    // MDR Sensors
+    if (deviceId.startsWith("MDR-")) {
+      return "MDR Sensors";
+    }
+    
+    // If none of the specific patterns match, return null
     return null;
   };
 
@@ -235,21 +258,34 @@ const DeviceManagement = () => {
   };
   
   // Fetch Footfall sensor data
-  const fetchFootfallData = async () => {
-    try {
-      const response = await fetch("https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices");
-      if (!response.ok) {
-        throw new Error(`Footfall API error: ${response.status}`);
-      }
-      const data = await response.json();
-      
-      // Transform the data to match our expected format
-      // Create an object with area_id as keys for easier lookup
-      const transformedData = {};
-      data.forEach(item => {
-        // Use area_id as the device ID
+  // Fetch Footfall sensor data
+const fetchFootfallData = async () => {
+  try {
+    const response = await fetch("https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices");
+    if (!response.ok) {
+      throw new Error(`Footfall API error: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    // Define our known unique footfall IDs
+    const knownFootfallIds = [
+      "1F-LRR-EX01", "1F-LRR-EX02", 
+      "1F-L-B01", "1F-ME-B01", "1F-Lobby-V01", "MF-S-B01", 
+      "1F-BF-B01", "1F-BF-B02", "1F-Lobby-V03", "MF-S-V03", 
+      "MF-S-V01", "MF-S-V02", 
+      "2F-S-V03", "2F-L-B01", "2F-S-V02", "2F-S-V04", "2F-S-V01", 
+      "3F-S-B01", "3F-L-V01", "3F-S-B02", 
+      "1F-ME-B02"
+    ];
+    
+    // Transform the data to match our expected format
+    const transformedData = {};
+    
+    // Process only the items that match our known footfall IDs
+    data.forEach(item => {
+      if (item.area_id && knownFootfallIds.includes(item.area_id)) {
         transformedData[item.area_id] = {
-          timestamp: new Date().toISOString(), // Current time as these don't seem to have timestamps
+          timestamp: new Date().toISOString(),
           count: item.functional_capacity || 0,
           maxCapacity: item.max_capacity || 0,
           zone: item.zone_name || '',
@@ -257,16 +293,17 @@ const DeviceManagement = () => {
           floor: item.floor_id || '',
           building: item.building || '',
           status: item.functional_capacity < item.max_capacity ? "normal" : "overcrowded",
-          battery: 100 // These are POE powered, so we'll set battery to 100%
+          battery: 100
         };
-      });
-      
-      return transformedData;
-    } catch (err) {
-      console.error("Error fetching Footfall data:", err);
-      return {};
-    }
-  };
+      }
+    });
+    
+    return transformedData;
+  } catch (err) {
+    console.error("Error fetching Footfall data:", err);
+    return {};
+  }
+};
   
   // Fetch Occupancy sensor data
   const fetchOccupancyData = async () => {
@@ -537,7 +574,7 @@ const DeviceManagement = () => {
       {/* Search Bar */}
       <div className="relative mb-6">
         <div className="flex items-center border rounded-md bg-white shadow-sm">
-          <div className="px-3 py-2">
+          <div className="px-3 py-3">
             <Search className="w-5 h-5 text-gray-500" />
           </div>
           <input

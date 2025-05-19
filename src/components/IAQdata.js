@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // IAQ Data Service to fetch and manage IAQ sensor data
 const useIAQData = () => {
@@ -7,7 +7,11 @@ const useIAQData = () => {
   const [processedZoneData, setProcessedZoneData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  
+  // Use refs to track the latest state without triggering effect dependencies
+  const deviceLocationsRef = useRef({});
+  const dataRef = useRef([]);
+  
   // Fetch device locations
   useEffect(() => {
     const fetchDeviceLocations = async () => {
@@ -24,6 +28,7 @@ const useIAQData = () => {
         });
 
         setDeviceLocations(locationMapping);
+        deviceLocationsRef.current = locationMapping;
       } catch (error) {
         console.error("Error fetching device locations:", error);
         setError("Failed to fetch device locations");
@@ -31,7 +36,7 @@ const useIAQData = () => {
     };
 
     fetchDeviceLocations();
-  }, []);
+  }, []); // Only run once on mount
 
   // Parse location to determine floor and zone
   const parseLocation = useCallback((location) => {
@@ -202,15 +207,15 @@ const useIAQData = () => {
       });
     });
     
-    // Log processed data for debugging
-    console.log("Processed Zone Data:", processedData);
-    
     return processedData;
-  }, [parseLocation, displayFloorMap]);
+  }, [parseLocation]);
 
   // Fetch IAQ data
   const fetchIAQData = useCallback(async () => {
-    if (Object.keys(deviceLocations).length === 0) return;
+    // Use the ref to avoid dependency on deviceLocations
+    const currentDeviceLocations = deviceLocationsRef.current;
+    
+    if (Object.keys(currentDeviceLocations).length === 0) return;
     
     try {
       const response = await fetch("https://optimusc.flowfuse.cloud/iaq");
@@ -221,7 +226,7 @@ const useIAQData = () => {
         return {
           id,
           ...values,
-          location: deviceLocations[id] || "Unknown Location",
+          location: currentDeviceLocations[id] || "Unknown Location",
         };
       });
 
@@ -231,21 +236,20 @@ const useIAQData = () => {
           sensor.id.startsWith("IAQ-P") || sensor.id.startsWith("IAQ-L")
       );
 
-      // Log specific sensors for debugging
-      const specificSensors = [
-        "IAQ-L07", "IAQ-L08", "IAQ-L13", "IAQ-L10", 
-        "IAQ-P05", "IAQ-L17", "IAQ-L18"
-      ];
-      
-      console.log("Specific IAQ sensors:", 
-        iaqSensors.filter(sensor => specificSensors.includes(sensor.id))
-      );
-
+      // Update the ref
+      dataRef.current = iaqSensors;
       setData(iaqSensors);
       
       // Process the sensor data into zone data
       const zoneData = processSensorData(iaqSensors);
-      setProcessedZoneData(zoneData);
+      
+      // Only update state if data has changed
+      setProcessedZoneData(prevData => {
+        if (JSON.stringify(prevData) !== JSON.stringify(zoneData)) {
+          return zoneData;
+        }
+        return prevData;
+      });
       
       if (loading) {
         setLoading(false);
@@ -258,16 +262,20 @@ const useIAQData = () => {
         setLoading(false);
       }
     }
-  }, [deviceLocations, loading, processSensorData]);
+  }, [processSensorData, loading]);
 
   // Fetch data initially and then periodically
   useEffect(() => {
-    if (Object.keys(deviceLocations).length > 0) {
+    // Use the ref to check if we have device locations
+    if (Object.keys(deviceLocationsRef.current).length > 0) {
+      // Initial fetch
       fetchIAQData();
-      const interval = setInterval(fetchIAQData, 90000); // Every 90 seconds
+      
+      // Set interval
+      const interval = setInterval(fetchIAQData, 60000); // every 1min
       return () => clearInterval(interval);
     }
-  }, [deviceLocations, fetchIAQData]);
+  }, [deviceLocations]); // Only re-run when deviceLocations changes, not on every fetchIAQData change
 
   return {
     rawSensorData: data,

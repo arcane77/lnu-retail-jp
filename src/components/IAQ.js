@@ -495,8 +495,8 @@ const IAQ = () => {
 
     fetchAllSensorData();
 
-    // Refresh data every 5 minutes
-    const intervalId = setInterval(fetchAllSensorData, 300000);
+    // Refresh data every 2mins
+    const intervalId = setInterval(fetchAllSensorData, 120000);
 
     return () => clearInterval(intervalId);
   }, []);
@@ -528,8 +528,8 @@ const IAQ = () => {
     // Call the function initially
     fetchHKOTemperature();
 
-    // Set up interval to fetch HKO data every 5 minutes (300,000 ms)
-    const hkoInterval = setInterval(fetchHKOTemperature, 300000);
+    // Set up interval to fetch HKO data every 90s 
+    const hkoInterval = setInterval(fetchHKOTemperature, 120000);
 
     return () => clearInterval(hkoInterval);
   }, []);
@@ -666,7 +666,7 @@ const IAQ = () => {
     // Only fetch data when deviceLocations is available
     if (Object.keys(deviceLocations).length > 0) {
       fetchData();
-      const interval = setInterval(fetchData, 90000);
+      const interval = setInterval(fetchData, 120000);
       return () => clearInterval(interval);
     }
   }, [deviceLocations]);
@@ -839,7 +839,7 @@ const IAQ = () => {
       <main className="xl:pt-[120px] lg:pt-[100px] md:pt-[80px] sm:pt-[80px] pt-[80px] px-4 sm:px-6 lg:px-8 mx-2">
         <div className="flex justify-between items-center mb-8">
           <h2 className="sm:text-xl md:text-2xl lg:text-[26px] text-[22px] font-semibold">
-            IAQ
+            Indoor Air Quality
           </h2>
           <div className="flex space-x-4">
             {hkoTemperature && (

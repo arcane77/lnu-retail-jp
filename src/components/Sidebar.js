@@ -311,11 +311,11 @@ const sendPasswordResetEmail = async () => {
       
         <div>
             <div className={`fixed inset-0 bg-black bg-opacity-40 transition-opacity duration-200 ${isSidebarOpen ? "opacity-100 visible z-20" : "opacity-0 invisible"}`}></div>
-            <div ref={sidebarRef} className={`fixed top-0 left-0 h-full bg-white shadow-lg w-[366px] transition-transform duration-300 transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} z-30`}>
+            <div ref={sidebarRef} className={`fixed top-0 left-0 h-full bg-white shadow-lg md:w-[396px] w-[366px] transition-transform duration-300 transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} z-30`}>
                 <div className="flex items-center justify-between pt-4 pl-4 pr-4 pb-1">
                     <div className="flex">
                         <img src="/_crop.png" alt="LNU Logo" className="h-8 w-8" />
-                        <h2 className="text-[20px] pl-2 font-semibold">Lingnan University</h2>
+                        <h2 className="text-[20px] pl-2 font-semibold">Lingnan University Library</h2>
                     </div>
                     <button onClick={() => setIsSidebarOpen(false)} className="w-14 h-8 flex items-center justify-center font-semibold text-gray-400 hover:text-gray-900">X</button>
                 </div>

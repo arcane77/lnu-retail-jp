@@ -81,22 +81,69 @@ const PeakZoneDaily = ({ selectedZone, selectedDate, selectedFloor }) => {
       peakOccupancy: 0,
       timestamp: null,
       maxCapacity: 0,
-      peakHour: null
+      peakHour: null,
+      peaksByTimestamp: {} // Track data by timestamp to handle duplicates
     };
-
+    
+    // First pass: Initialize timestamp tracking
     data.forEach((item) => {
       const { floor_id, zone_name, data: zoneData } = item;
 
       // Skip if it's not the zone we're interested in
-      if (!apiZoneNames.includes(zone_name)) return;
+      if (!apiZoneNames.includes(zone_name)) {
+        return;
+      }
       
       // Apply floor filter
-      if (floor_id !== selectedFloor) return;
+      if (floor_id !== selectedFloor) {
+        return;
+      }
 
-      // Process data for each timestamp
+      // Initialize data structures for each timestamp
       zoneData.forEach((entry) => {
-        const { timestamp, total_occupancy, max_capacity } = entry;
+        const { timestamp, max_capacity } = entry;
+        
+        if (!peakData.peaksByTimestamp[timestamp]) {
+          peakData.peaksByTimestamp[timestamp] = {
+            processed: false, // Track if we've processed this timestamp already
+            occupancy: 0
+          };
+        }
+        
+        // Track max capacity (any entry's max_capacity should work)
+        if (!peakData.maxCapacity && max_capacity) {
+          peakData.maxCapacity = max_capacity;
+        }
+      });
+    });
+    
+    // Second pass: Process occupancy data and avoid duplicates
+    data.forEach((item) => {
+      const { floor_id, zone_name, data: zoneData } = item;
 
+      // Skip if it's not the zone we're interested in
+      if (!apiZoneNames.includes(zone_name)) {
+        return;
+      }
+      
+      // Apply floor filter
+      if (floor_id !== selectedFloor) {
+        return;
+      }
+
+      // Process data for each timestamp, but only once per timestamp
+      zoneData.forEach((entry) => {
+        const { timestamp, total_occupancy } = entry;
+        
+        // Skip if we've already processed this timestamp for this zone
+        if (peakData.peaksByTimestamp[timestamp].processed) {
+          return;
+        }
+        
+        // Mark this timestamp as processed
+        peakData.peaksByTimestamp[timestamp].processed = true;
+        peakData.peaksByTimestamp[timestamp].occupancy = total_occupancy;
+        
         // Update peak occupancy if this value is higher
         if (total_occupancy > peakData.peakOccupancy) {
           peakData.peakOccupancy = total_occupancy;
@@ -106,11 +153,6 @@ const PeakZoneDaily = ({ selectedZone, selectedDate, selectedFloor }) => {
           const utcDate = new Date(timestamp);
           const hktHour = (utcDate.getUTCHours() + 8) % 24; // Add 8 hours for HKT
           peakData.peakHour = hktHour;
-        }
-        
-        // Track max capacity (any entry's max_capacity should work)
-        if (!peakData.maxCapacity && max_capacity) {
-          peakData.maxCapacity = max_capacity;
         }
       });
     });
@@ -128,12 +170,25 @@ const PeakZoneDaily = ({ selectedZone, selectedDate, selectedFloor }) => {
       totalOccupancy: 0,
       maxCapacity: 0
     };
+    
+    // Track if we've already processed this zone for this floor
+    let processed = false;
 
     data.forEach((item) => {
       const { floor_id, zone_name, total_occupancy, max_capacity } = item;
 
       // Skip if it's not the zone we're interested in or not the selected floor
-      if (!apiZoneNames.includes(zone_name) || floor_id !== selectedFloor) return;
+      if (!apiZoneNames.includes(zone_name) || floor_id !== selectedFloor) {
+        return;
+      }
+      
+      // Skip if we've already processed this zone-floor combination
+      if (processed) {
+        return;
+      }
+      
+      // Mark as processed
+      processed = true;
       
       // Save the occupancy data
       liveData.totalOccupancy = total_occupancy;
