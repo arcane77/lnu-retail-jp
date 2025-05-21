@@ -17,6 +17,8 @@ const EditSpaces = () => {
   const [buildingName, setBuildingName] = useState("LNU"); // Default value until data is fetched
   const [isEditingBuilding, setIsEditingBuilding] = useState(false);
   const [newBuildingName, setNewBuildingName] = useState("");
+  const [newFirstThreshold, setNewFirstThreshold] = useState("");
+  const [newSecondThreshold, setNewSecondThreshold] = useState("");
 
   // Fetch device data on component mount
   useEffect(() => {
@@ -28,17 +30,17 @@ const EditSpaces = () => {
           "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices"
         );
         setFloorZoneData(response.data);
-        
+
         // Extract building name from the response
         // Find an item with new_building field
-        const buildingInfo = response.data.find(item => item.new_building);
+        const buildingInfo = response.data.find((item) => item.new_building);
         if (buildingInfo && buildingInfo.new_building) {
           setBuildingName(buildingInfo.new_building);
         } else if (response.data.length > 0 && response.data[0].building) {
           // Fallback to building field if new_building doesn't exist
           setBuildingName(response.data[0].building);
         }
-        
+
         setLoading(false);
       } catch (err) {
         console.error("Error fetching device data:", err);
@@ -53,32 +55,36 @@ const EditSpaces = () => {
   const handleSaveBuilding = async () => {
     try {
       const response = await axios.put(
-        'https://njs-01.optimuslab.space/lnu-footfall/floor-zone/building', 
+        "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/building",
         {
-          new_building: newBuildingName
+          new_building: newBuildingName,
         },
         {
           headers: {
-            'Content-Type': 'application/json'
-          }
+            "Content-Type": "application/json",
+          },
         }
       );
-      
-      console.log('Building update response:', response);
-      
+
+      console.log("Building update response:", response);
+
       setBuildingName(newBuildingName);
       setIsEditingBuilding(false);
-      setSuccessMessage('Successfully updated building name');
-      setTimeout(() => setSuccessMessage(''), 3000);
-      
+      setSuccessMessage("Successfully updated building name");
+      setTimeout(() => setSuccessMessage(""), 3000);
+
       // Refresh device cache
-      await axios.post('https://njs-01.optimuslab.space/lnu-footfall/floor-zone/refresh-devices');
-      
+      await axios.post(
+        "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/refresh-devices"
+      );
+
       // Optionally reload the data to ensure UI is in sync with server
-      const response2 = await axios.get('https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices');
+      const response2 = await axios.get(
+        "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices"
+      );
       setFloorZoneData(response2.data);
     } catch (err) {
-      console.error('Error updating building name:', err);
+      console.error("Error updating building name:", err);
       setError(`Failed to update building name: ${err.message}`);
       setTimeout(() => setError(null), 3000);
     }
@@ -102,8 +108,12 @@ const EditSpaces = () => {
       if (!floor_id || !zone_name || zone_name.toLowerCase() === "relocated")
         return;
 
-       // Skip Zone B in MF floor
-    if (floor_id === "MF" && new_zone_name.toLowerCase() === "zone b" || zone_name.toLowerCase() === "Central-Zone") return;
+      // Skip Zone B in MF floor
+      if (
+        (floor_id === "MF" && new_zone_name.toLowerCase() === "zone b") ||
+        zone_name.toLowerCase() === "Central-Zone"
+      )
+        return;
 
       // Initialize floor if not exists
       if (!floorZonesMap[floor_id]) {
@@ -124,6 +134,8 @@ const EditSpaces = () => {
           display_name: new_zone_name || zone_name, // Use new_zone_name if available, otherwise use zone_name
           max_capacity: max_capacity,
           functional_capacity: functional_capacity,
+          first_threshold: device.first_threshold || 25,
+          second_threshold: device.second_threshold || 70,
         };
       }
     });
@@ -173,14 +185,16 @@ const EditSpaces = () => {
     zoneName,
     absoluteCapacity,
     functionalCapacity,
-    displayName
+    displayName,
+    firstThreshold,
+    secondThreshold
   ) => {
-    // Store the exact zone name as it appears in the API response
-    // to preserve case sensitivity when making API calls
     setEditingZone({ floorId, zoneName });
     setNewCapacity(absoluteCapacity.toString());
     setNewFunctionalCapacity(functionalCapacity.toString());
     setNewZoneName(displayName);
+    setNewFirstThreshold(firstThreshold.toString());
+    setNewSecondThreshold(secondThreshold.toString());
   };
 
   const handleCancelEdit = () => {
@@ -188,6 +202,8 @@ const EditSpaces = () => {
     setNewCapacity("");
     setNewFunctionalCapacity("");
     setNewZoneName("");
+    setNewFirstThreshold("");
+    setNewSecondThreshold("");
   };
 
   const handleSave = async () => {
@@ -199,6 +215,8 @@ const EditSpaces = () => {
       // Validate capacity inputs
       const absoluteCapacity = parseInt(newCapacity, 10);
       const functionalCapacity = parseInt(newFunctionalCapacity, 10);
+      const firstThreshold = parseInt(newFirstThreshold, 10);
+      const secondThreshold = parseInt(newSecondThreshold, 10);
 
       if (isNaN(absoluteCapacity) || absoluteCapacity < 1) {
         setError("Absolute capacity must be a positive number");
@@ -212,6 +230,24 @@ const EditSpaces = () => {
 
       if (!newZoneName.trim()) {
         setError("Zone name cannot be empty");
+        return;
+      }
+
+      // Validate thresholds
+      if (isNaN(firstThreshold)) {
+        setError("Moderate threshold must be a number");
+        return;
+      }
+
+      if (isNaN(secondThreshold)) {
+        setError("High threshold must be a number");
+        return;
+      }
+
+      if (firstThreshold >= secondThreshold) {
+        setError(
+          "Moderate threshold (amber) must be lower than high threshold (red)"
+        );
         return;
       }
 
@@ -264,6 +300,32 @@ const EditSpaces = () => {
         changes.push("zone name");
       }
 
+      // Update first threshold if changed
+      if (originalZone.first_threshold !== firstThreshold) {
+        await axios.put(
+          "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/first-threshold",
+          {
+            floor_id: floorId,
+            zone_name: zoneName,
+            first_threshold: firstThreshold,
+          }
+        );
+        changes.push("moderate threshold");
+      }
+
+      // Update second threshold if changed
+      if (originalZone.second_threshold !== secondThreshold) {
+        await axios.put(
+          "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/second-threshold",
+          {
+            floor_id: floorId,
+            zone_name: zoneName,
+            second_threshold: secondThreshold,
+          }
+        );
+        changes.push("high threshold");
+      }
+
       // Refresh device cache
       await axios.post(
         "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/refresh-devices"
@@ -281,6 +343,8 @@ const EditSpaces = () => {
               max_capacity: absoluteCapacity,
               functional_capacity: functionalCapacity,
               new_zone_name: newZoneName,
+              first_threshold: firstThreshold,
+              second_threshold: secondThreshold,
             };
           }
           return device;
@@ -296,7 +360,10 @@ const EditSpaces = () => {
       } else if (changes.length === 2) {
         message += `${changes[0]} and ${changes[1]}`;
       } else {
-        message += `${changes[0]}, ${changes[1]}, and ${changes[2]}`;
+        message +=
+          changes.slice(0, -1).join(", ") +
+          ", and " +
+          changes[changes.length - 1];
       }
 
       setSuccessMessage(message);
@@ -307,6 +374,8 @@ const EditSpaces = () => {
       setNewCapacity("");
       setNewFunctionalCapacity("");
       setNewZoneName("");
+      setNewFirstThreshold("");
+      setNewSecondThreshold("");
     } catch (err) {
       console.error("Error updating zone:", err);
       setError(`Failed to update zone: ${err.message}`);
@@ -466,6 +535,18 @@ const EditSpaces = () => {
                               </th>
                               <th
                                 scope="col"
+                                className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                              >
+                                Moderate Threshold % 
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                              >
+                                High Threshold %
+                              </th>
+                              <th
+                                scope="col"
                                 className="px-6 py-3 text-right text-sm font-medium text-gray-600"
                               >
                                 Actions
@@ -528,6 +609,42 @@ const EditSpaces = () => {
                                     <span>{zone.functional_capacity}</span>
                                   )}
                                 </td>
+                               {/* Moderate Threshold (Amber) */}
+<td className="px-6 py-4 whitespace-nowrap text-[16px] text-gray-600">
+  {editingZone &&
+  editingZone.floorId === floor.id &&
+  editingZone.zoneName.toLowerCase() ===
+    zone.name.toLowerCase() ? (
+    <input
+      type="number"
+      value={newFirstThreshold}
+      onChange={(e) =>
+        setNewFirstThreshold(e.target.value)
+      }
+      className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    />
+  ) : (
+    <span>{">= "}{zone.first_threshold || 25}{"%"}</span>
+  )}
+</td>
+{/* High Threshold (Red) */}
+<td className="px-6 py-4 whitespace-nowrap text-[16px] text-gray-600">
+  {editingZone &&
+  editingZone.floorId === floor.id &&
+  editingZone.zoneName.toLowerCase() ===
+    zone.name.toLowerCase() ? (
+    <input
+      type="number"
+      value={newSecondThreshold}
+      onChange={(e) =>
+        setNewSecondThreshold(e.target.value)
+      }
+      className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    />
+  ) : (
+    <span>{">= "}{zone.second_threshold || 70}{"%"}</span>
+  )}
+</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                   {editingZone &&
                                   editingZone.floorId === floor.id &&
@@ -555,7 +672,9 @@ const EditSpaces = () => {
                                           zone.name,
                                           zone.max_capacity,
                                           zone.functional_capacity,
-                                          zone.display_name
+                                          zone.display_name,
+                                          zone.first_threshold || 25,
+                                          zone.second_threshold || 70
                                         )
                                       }
                                       className="text-blue-600 hover:text-blue-900 px-3 py-1 border border-blue-600 rounded-md hover:bg-blue-50"
@@ -568,6 +687,11 @@ const EditSpaces = () => {
                             ))}
                           </tbody>
                         </table>
+                        {/* Add this after the table */}
+                        <div className="px-6 py-3 text-sm text-gray-600 italic">
+                          Note: Low Threshold is automatically set when
+                          the occupancy is below the Moderate Threshold value.
+                        </div>
                       </div>
                     </div>
                   ))}

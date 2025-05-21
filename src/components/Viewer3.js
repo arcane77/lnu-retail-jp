@@ -1,133 +1,431 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { FaTemperatureHigh, FaTint, FaDesktop } from "react-icons/fa";
+import { FaTemperatureHigh, FaTint, FaSmog, FaWind } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import useIAQData from "./IAQdata"; 
- 
+import useIAQData from "./IAQdata";
+
 const Viewer3 = () => {
   const currentDate = new Date();
   const { logout } = useAuth0();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const sidebarRef = useRef(null);
   const [weather, setWeather] = useState(null);
+  const [airQuality, setAirQuality] = useState(null);
   const navigate = useNavigate();
   const [activeFloor, setActiveFloor] = useState("1/F"); // Track active floor
   const [zoneData, setZoneData] = useState({});
   const [crData, setCRData] = useState({
     "1F-CR1": { occupancy: 0, timestamp: 0 },
-    "1F-CR2": { occupancy: 0, timestamp: 0 }
+    "1F-CR2": { occupancy: 0, timestamp: 0 },
   });
+
+  const [mprData, setMPRData] = useState({
+    "3F-MPR-V01": { occupancy: 0, timestamp: 0 },
+    "3F-MPR-V02": { occupancy: 0, timestamp: 0 },
+  });
+  // state for Computer Room 2 DOS data
+  const [cpr2Data, setCPR2Data] = useState({ occupancy: 0, timestamp: 0 });
   const [loading, setLoading] = useState(true);
-  
+
   // Use our new IAQ data service
   const { zoneIAQData, loading: iaqLoading } = useIAQData();
- 
+
   const day = currentDate.getDate().toString().padStart(2, "0");
   const month = currentDate.toLocaleString("en-US", { month: "short" });
   const year = currentDate.getFullYear();
   const weekday = currentDate.toLocaleString("en-US", { weekday: "long" });
- 
+
   const formattedDate = `${day} ${month} ${year}, ${weekday}`; // format date
- 
+
   // Map for floor IDs to match the API format
   const floorIdMap = {
     "1/F": "1F",
     "M/F": "MF",
     "2/F": "2F",
-    "3/F": "3F"
+    "3/F": "3F",
   };
- 
+
   // Map for zone names
   const zoneNameMap = {
-    "South": "Zone A",
-    "Central": "Zone B",
-    "North": "Zone C"
+    South: "Zone A",
+    Central: "Zone B",
+    North: "Zone C",
   };
- 
+
   // Floor and zone availability mapping
   const floorZoneMapping = {
     "1/F": ["Zone A", "Zone B", "Zone C"],
     "M/F": ["Zone A", "Zone C"],
     "2/F": ["Zone A", "Zone B", "Zone C"],
-    "3/F": ["Zone B"],
+    "3/F": ["Floor", "Multi Purpose Room 2", "Multi Purpose Room 1"],
   };
- 
+
   // Fetch Computer Room occupancy data
+  const fetchOccupancyData = async () => {
+    try {
+      const response = await fetch(
+        "https://optimusc.flowfuse.cloud/lingnan-library-occupancy"
+      );
+      const data = await response.json();
+
+      // Process the response data
+      const processedCRData = {};
+      const processedMPRData = {};
+
+      // Check if data is an array
+      if (Array.isArray(data)) {
+        data.forEach((item) => {
+          // Handle Computer Room data
+          if (item.area === "1F-CR1" || item.area === "1F-CR2") {
+            processedCRData[item.area] = {
+              occupancy: item.occupancy,
+              timestamp: item.timestamp,
+            };
+          }
+          // Handle Multi Purpose Room data
+          if (item.area === "3F-MPR-V01" || item.area === "3F-MPR-V02") {
+            processedMPRData[item.area] = {
+              occupancy: item.occupancy,
+              timestamp: item.timestamp,
+            };
+          }
+        });
+
+        // Update Computer Room data
+        setCRData((prevData) => {
+          if (JSON.stringify(prevData) !== JSON.stringify(processedCRData)) {
+            return { ...prevData, ...processedCRData };
+          }
+          return prevData;
+        });
+
+        // Update Multi Purpose Room data
+        setMPRData((prevData) => {
+          if (JSON.stringify(prevData) !== JSON.stringify(processedMPRData)) {
+            return { ...prevData, ...processedMPRData };
+          }
+          return prevData;
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching occupancy data:", error);
+    }
+  };
+
+  // fetch immediately
+  fetchOccupancyData();
+
+  // every 20 seconds
+  const intervalId = setInterval(fetchOccupancyData, 20000);
+
   useEffect(() => {
-    const fetchCRData = async () => {
+    // Default fallback values if API fails
+    const fallbackData = {
+      pm10: 20.7,
+      pm25: 15.9,
+      timestamp: new Date(),
+    };
+
+    const fetchAirQuality = async () => {
+      try {
+        console.log("Fetching air quality data...");
+        const response = await fetch(
+          "https://lnuweather-dot-optimus-hk.df.r.appspot.com/api/aqhi"
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        // Get the response as text
+        const responseText = await response.text();
+        console.log(
+          "Response received, first 100 chars:",
+          responseText.substring(0, 100)
+        );
+
+        // It's XML data
+        if (
+          responseText.trim().startsWith("<?xml") ||
+          responseText.trim().startsWith("<")
+        ) {
+          try {
+            // Use the browser's built-in XML parser
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(responseText, "text/xml");
+
+            // Find all PollutantConcentration elements
+            const pollutantConcentrations = xmlDoc.getElementsByTagName(
+              "PollutantConcentration"
+            );
+            console.log(
+              `Found ${pollutantConcentrations.length} PollutantConcentration elements`
+            );
+
+            // Filter for only Tuen Mun data entries
+            const tuenMunEntries = [];
+            for (let i = 0; i < pollutantConcentrations.length; i++) {
+              const stationElement =
+                pollutantConcentrations[i].getElementsByTagName(
+                  "StationName"
+                )[0];
+
+              if (stationElement && stationElement.textContent === "Tuen Mun") {
+                const dateTimeElement =
+                  pollutantConcentrations[i].getElementsByTagName(
+                    "DateTime"
+                  )[0];
+                const pm10Element =
+                  pollutantConcentrations[i].getElementsByTagName("PM10")[0];
+                const pm25Element =
+                  pollutantConcentrations[i].getElementsByTagName("PM2.5")[0];
+
+                if (dateTimeElement && pm10Element && pm25Element) {
+                  tuenMunEntries.push({
+                    element: pollutantConcentrations[i],
+                    dateTime: new Date(dateTimeElement.textContent),
+                    pm10: parseFloat(pm10Element.textContent),
+                    pm25: parseFloat(pm25Element.textContent),
+                  });
+                }
+              }
+            }
+
+            if (tuenMunEntries.length > 0) {
+              console.log(`Found ${tuenMunEntries.length} Tuen Mun entries`);
+
+              // Sort by date, most recent first
+              tuenMunEntries.sort((a, b) => b.dateTime - a.dateTime);
+
+              // Log all entries to help debug
+              tuenMunEntries.forEach((entry, index) => {
+                console.log(
+                  `Entry ${index}: ${entry.dateTime.toISOString()}, PM10=${
+                    entry.pm10
+                  }, PM2.5=${entry.pm25}`
+                );
+              });
+
+              // Get the most recent entry
+              const latestEntry = tuenMunEntries[0];
+              console.log(
+                `Using most recent entry: ${latestEntry.dateTime.toISOString()}`
+              );
+
+              setAirQuality({
+                pm10: latestEntry.pm10,
+                pm25: latestEntry.pm25,
+                timestamp: latestEntry.dateTime,
+              });
+              return; // Success! Exit the function
+            } else {
+              console.log("No valid Tuen Mun entries found");
+            }
+          } catch (xmlError) {
+            console.error("Error parsing XML:", xmlError);
+          }
+        }
+
+        // If we reach here, we couldn't parse the data correctly
+        console.warn(
+          "Could not parse response correctly. Using fallback data."
+        );
+        setAirQuality(fallbackData);
+      } catch (error) {
+        console.error("Error fetching air quality data:", error);
+        // Use fallback data if there's an error
+        console.log("Using fallback air quality data");
+        setAirQuality(fallbackData);
+      }
+    };
+
+    // Fetch immediately
+    fetchAirQuality();
+
+    // Fetch every 30s
+    const intervalId = setInterval(fetchAirQuality, 30000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Fetch Computer Room 2 data from DOS endpoint
+  useEffect(() => {
+    const fetchCPR2Data = async () => {
       try {
         const response = await fetch(
-          "https://optimusc.flowfuse.cloud/lingnan-library-occupancy"
+          "https://optimusc.flowfuse.cloud/lingnan-library-dos"
         );
         const data = await response.json();
-        
-        // Process the response data
-        const processedData = {};
-        
-        // Check if data is an array
+
+        // Count occupied devices that start with CPR2-
+        let occupiedCount = 0;
         if (Array.isArray(data)) {
-          data.forEach(item => {
-            if (item.area === "1F-CR1" || item.area === "1F-CR2") {
-              processedData[item.area] = {
-                occupancy: item.occupancy,
-                timestamp: item.timestamp
-              };
+          data.forEach((item) => {
+            if (
+              item.area &&
+              item.area.startsWith("CPR2-") &&
+              (item.occupancy === "occupied" || item.occupancy === "countdown")
+            ) {
+              occupiedCount++;
             }
-          });
-          
-          setCRData(prevData => {
-            // Only update if different
-            if (JSON.stringify(prevData) !== JSON.stringify(processedData)) {
-              return {...prevData, ...processedData};
-            }
-            return prevData;
           });
         }
+
+        setCPR2Data({
+          occupancy: occupiedCount,
+          timestamp: Date.now(),
+        });
       } catch (error) {
-        console.error("Error fetching CR data:", error);
+        console.error("Error fetching CPR2 data:", error);
+      }
+    };
+
+    // Fetch immediately
+    fetchCPR2Data();
+
+    // Fetch every 20 seconds
+    const intervalId = setInterval(fetchCPR2Data, 20000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const fetchTemperature = async () => {
+      try {
+        console.log("Fetching temperature data...");
+        const response = await fetch("https://lnuweather-dot-optimus-hk.df.r.appspot.com/api/weather");
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        // Get the response as text
+        const responseText = await response.text();
+        console.log("Temperature data received");
+        
+        // The data is coming as HTML content with tables
+        // Based on debug output, we need to look for a pattern like:
+        // <tr><td><font size="-1">Tuen Mun</font></td><td width="100" align="right"><font size="-1">32 degrees ;</font></td></tr>
+        
+        // Method 1: Handle HTML content with regex
+        // Pattern that matches Tuen Mun in a table cell, then finds the next cell with degrees
+        const htmlPattern = /Tuen Mun<\/font><\/td><td[^>]*><font[^>]*>(\d{1,2}) degrees/;
+        let match = responseText.match(htmlPattern);
+        
+        if (match && match[1]) {
+          const temperature = parseInt(match[1], 10);
+          console.log(`Found Tuen Mun temperature in HTML: ${temperature}°C`);
+          
+          setWeather(prevWeather => ({
+            temp: temperature,
+            humidity: prevWeather ? prevWeather.humidity : 70
+          }));
+          return; // Success
+        }
+        
+        // Method 2: Look for a simpler pattern that might work even if HTML structure changes
+        // Just find "Tuen Mun" followed by digits and "degrees" within a reasonable character range
+        const simplePattern = /Tuen Mun(?:(?!Tuen Mun).){1,100}?(\d{1,2}) degrees/s;
+        match = responseText.match(simplePattern);
+        
+        if (match && match[1]) {
+          const temperature = parseInt(match[1], 10);
+          console.log(`Found Tuen Mun temperature using simple pattern: ${temperature}°C`);
+          
+          setWeather(prevWeather => ({
+            temp: temperature,
+            humidity: prevWeather ? prevWeather.humidity : 70
+          }));
+          return; // Success
+        }
+        
+        // Method 3: Extract from the text-only portion - look at the raw data you shared
+        // The data also appears in plaintext format like "Tuen Mun32 degrees ;"
+        const textPattern = /Tuen Mun(\d{1,2}) degrees/;
+        match = responseText.match(textPattern);
+        
+        if (match && match[1]) {
+          const temperature = parseInt(match[1], 10);
+          console.log(`Found Tuen Mun temperature in plain text: ${temperature}°C`);
+          
+          setWeather(prevWeather => ({
+            temp: temperature,
+            humidity: prevWeather ? prevWeather.humidity : 70
+          }));
+          return; // Success
+        }
+        
+        // Method 4: Last resort - semi-colon separated list parsing
+        const lines = responseText.split(';');
+        for (const line of lines) {
+          if (line.includes('Tuen Mun') && line.includes('degrees')) {
+            const numberMatch = line.match(/(\d{1,2})\s*degrees/);
+            if (numberMatch && numberMatch[1]) {
+              const temperature = parseInt(numberMatch[1], 10);
+              console.log(`Found Tuen Mun temperature in line: ${temperature}°C`);
+              
+              setWeather(prevWeather => ({
+                temp: temperature,
+                humidity: prevWeather ? prevWeather.humidity : 70
+              }));
+              return; // Success
+            }
+          }
+        }
+        
+        console.log("Could not find valid Tuen Mun temperature with any pattern");
+        
+        // Keep existing temperature or set a fallback
+        setWeather(prevWeather => prevWeather || { temp: 30, humidity: 70 });
+        
+      } catch (error) {
+        console.error("Error fetching temperature data:", error);
+        // Use fallback data if there's an error
+        setWeather(prevWeather => prevWeather || { temp: 30, humidity: 70 });
       }
     };
     
-    // fetch immediately
-    fetchCRData();
+    // Fetch immediately
+    fetchTemperature();
     
-    //  every 15 seconds
-    const intervalId = setInterval(fetchCRData, 20000);
+    // Fetch every 30 seconds
+    const intervalId = setInterval(fetchTemperature, 30 * 1000);
     
     return () => clearInterval(intervalId);
   }, []);
- 
+
+  // Keep the original humidity fetch - it will be merged with the temperature data
   useEffect(() => {
-    const fetchWeather = async () => {
+    const fetchHumidity = async () => {
       try {
         const response = await fetch(
           "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=rhrread&lang=en"
         );
         const data = await response.json();
- 
-        // Get Tuen Mun temperature
-        const tuenMunTemp = data.temperature.data.find(
-          (item) => item.place === "Tuen Mun"
-        )?.value;
- 
+
         // Get Hong Kong Observatory humidity (only available location)
         const humidity = data.humidity.data[0]?.value;
- 
-        if (tuenMunTemp !== undefined && humidity !== undefined) {
-          setWeather({
-            temp: tuenMunTemp,
+
+        if (humidity !== undefined) {
+          setWeather((prevWeather) => ({
+            temp: prevWeather ? prevWeather.temp : 32, // Keep existing temp
             humidity: humidity,
-          });
+          }));
         }
       } catch (error) {
-        console.error("Error fetching weather data:", error);
+        console.error("Error fetching humidity data:", error);
       }
     };
- 
-    fetchWeather();
+
+    fetchHumidity();
+
+    
+    const intervalId = setInterval(fetchHumidity, 30000);
+
+    return () => clearInterval(intervalId);
   }, []);
- 
+
   // Fetch zone data
   useEffect(() => {
     const fetchZoneData = async () => {
@@ -136,54 +434,60 @@ const Viewer3 = () => {
           "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/live"
         );
         const data = await response.json();
-        
+
         // Process and organize the data by floor and zone
         const processedData = {};
-        
-        data.forEach(zone => {
+
+        data.forEach((zone) => {
           // Normalize zone name for case insensitivity
           const zoneName = zone.zone_name.toLowerCase();
           const floorId = zone.floor_id;
-          
+
           // Determine which zone (A, B, C) based on zone name
           let mappedZone = null;
           if (zoneName.includes("south")) {
             mappedZone = "Zone A";
           } else if (zoneName.includes("central")) {
-            mappedZone = "Zone B";
+            mappedZone = floorId === "3F" ? "Floor" : "Zone B";
           } else if (zoneName.includes("north")) {
             mappedZone = "Zone C";
           }
-          
+
           // Skip if not a main zone
           if (!mappedZone) return;
-          
+
           // Keep original occupancy values even if negative
           // We'll use occupancy_percentage for status calculation
           const displayedOccupancy = zone.total_occupancy;
-          const iconForStatus = zone.total_occupancy < 0 ? 0 : zone.total_occupancy;
-          const percentageForStatus = zone.occupancy_percentage < 0 ? 0 : zone.occupancy_percentage;
-          
+          const iconForStatus =
+            zone.total_occupancy < 0 ? 0 : zone.total_occupancy;
+          const percentageForStatus =
+            zone.occupancy_percentage < 0 ? 0 : zone.occupancy_percentage;
+
+          // Get threshold values (with fallbacks if not set)
+          const firstThreshold = zone.first_threshold || 40;
+          const secondThreshold = zone.second_threshold || 70;
+
           // Calculate status based on occupancy percentage
           // Use only non-negative percentage values for status determination
           let status = "available";
-          if (iconForStatus > 70) {
+          if (percentageForStatus >= secondThreshold) {
             status = "crowded";
-          } else if (iconForStatus > 40) {
+          } else if (percentageForStatus >= firstThreshold) {
             status = "less-available";
           }
-          
+
           // Map floor IDs to display format
           let displayFloor = Object.keys(floorIdMap).find(
-            key => floorIdMap[key] === floorId
+            (key) => floorIdMap[key] === floorId
           );
-          
+
           if (!displayFloor) return;
-          
+
           if (!processedData[displayFloor]) {
             processedData[displayFloor] = {};
           }
-          
+
           processedData[displayFloor][mappedZone] = {
             occupancy: `${Math.round(percentageForStatus)}%`,
             status: status,
@@ -195,32 +499,56 @@ const Viewer3 = () => {
             humidity: 64,
           };
         });
-        
+
+        // Initialize Multi Purpose Room zones with default IAQ values
+        if (processedData["3/F"]) {
+          if (!processedData["3/F"]["Multi Purpose Room 1"]) {
+            processedData["3/F"]["Multi Purpose Room 1"] = {
+              co2: 580,
+              temp: 25,
+              humidity: 64,
+            };
+          }
+          if (!processedData["3/F"]["Multi Purpose Room 2"]) {
+            processedData["3/F"]["Multi Purpose Room 2"] = {
+              co2: 580,
+              temp: 25,
+              humidity: 64,
+            };
+          }
+        }
+
         // Combine with IAQ data if available
         if (Object.keys(zoneIAQData).length > 0) {
-          Object.keys(processedData).forEach(floor => {
-            Object.keys(processedData[floor]).forEach(zone => {
+          Object.keys(processedData).forEach((floor) => {
+            Object.keys(processedData[floor]).forEach((zone) => {
               // If we have IAQ data for this floor and zone, use it
               if (zoneIAQData[floor] && zoneIAQData[floor][zone]) {
                 processedData[floor][zone] = {
                   ...processedData[floor][zone],
-                  co2: zoneIAQData[floor][zone].co2 || processedData[floor][zone].co2,
-                  temp: zoneIAQData[floor][zone].temp || processedData[floor][zone].temp,
-                  humidity: zoneIAQData[floor][zone].humidity || processedData[floor][zone].humidity
+                  co2:
+                    zoneIAQData[floor][zone].co2 ||
+                    processedData[floor][zone].co2,
+                  temp:
+                    zoneIAQData[floor][zone].temp ||
+                    processedData[floor][zone].temp,
+                  humidity:
+                    zoneIAQData[floor][zone].humidity ||
+                    processedData[floor][zone].humidity,
                 };
               }
             });
           });
         }
-        
-        setZoneData(prevData => {
+
+        setZoneData((prevData) => {
           // Only update the state if the data has actually changed
           if (JSON.stringify(prevData) !== JSON.stringify(processedData)) {
             return processedData;
           }
           return prevData;
         });
-        
+
         // Only set loading to false on the first load
         if (loading) {
           setLoading(false);
@@ -233,16 +561,16 @@ const Viewer3 = () => {
         }
       }
     };
- 
+
     //  first render
     fetchZoneData();
-    
+
     // every 15 seconds
     const intervalId = setInterval(fetchZoneData, 20000);
-    
+
     return () => clearInterval(intervalId);
-  }, [zoneIAQData]); 
- 
+  }, [zoneIAQData]);
+
   // Floor map URLs
   const floorMaps = {
     "1/F": "https://pwwpdev.github.io/Lingnan/first_floor_dos_overlay.html",
@@ -250,7 +578,7 @@ const Viewer3 = () => {
     "2/F": "https://pwwpdev.github.io/Lingnan/second_floor_dos.html",
     "3/F": "https://pwwpdev.github.io/Lingnan/third_floor_dos.html",
   };
- 
+
   // SVG icons for different occupancy statuses with redesigned human shapes
   const availableIcon = (
     <svg
@@ -301,7 +629,7 @@ const Viewer3 = () => {
       </g>
     </svg>
   );
- 
+
   const lessAvailableIcon = (
     <svg
       width="58"
@@ -341,7 +669,7 @@ const Viewer3 = () => {
       </g>
     </svg>
   );
- 
+
   const crowdedIcon = (
     <svg
       width="58"
@@ -371,44 +699,46 @@ const Viewer3 = () => {
       </g>
     </svg>
   );
-  
+
   // Component for zone occupancy indicator
   const ZoneIndicator = ({ zoneName, zoneData }) => {
     // Determine which computer room info to show based on the zone
-    let computerRoomInfo = null;
-    
+    let roomInfo = null;
+
     if (activeFloor === "1/F") {
       if (zoneName === "Zone A") {
-        computerRoomInfo = (
+        roomInfo = (
           <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
             <div className="flex items-center text-[17px] font-semibold mb-1">
-              Computer Room 1: <div className=" ml-3 font-bold">
-              {crData["1F-CR1"]?.occupancy || 0}
+              Computer Room 2:{" "}
+              <div className=" ml-3 font-bold">{cpr2Data?.occupancy || 0}</div>
             </div>
-            </div>
-            
           </div>
         );
       } else if (zoneName === "Zone C") {
-        computerRoomInfo = (
+        roomInfo = (
           <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
             <div className="flex items-center text-[17px] font-semibold mb-1">
-            Computer Room 2: <div className=" ml-3 font-bold">
-              {crData["1F-CR2"]?.occupancy || 0}
+              Computer Room 1:{" "}
+              <div className=" ml-3 font-bold">
+                {crData["1F-CR1"]?.occupancy || 0}
+              </div>
             </div>
-            </div>
-            
           </div>
         );
       }
     }
-    
+
     return (
       <div className="flex flex-col">
         <h3 className="lg:text-2xl xl:text-3xl font-bold mb-2">{zoneName}</h3>
         <div className="flex items-center">
           <span className="text-3xl xl:text-5xl 2xl:text-6xl md:text-3xl lg:text-4xl font-bold">
-            {zoneData?.totalOccupancy || 0}
+            {zoneName === "Multi Purpose Room 2"
+              ? mprData["3F-MPR-V02"]?.occupancy || 0
+              : zoneName === "Multi Purpose Room 1"
+              ? mprData["3F-MPR-V01"]?.occupancy || 0
+              : zoneData?.totalOccupancy || 0}
           </span>
           <div className="ml-2">
             {zoneData?.status === "available" && availableIcon}
@@ -418,26 +748,59 @@ const Viewer3 = () => {
           </div>
         </div>
         <div className="text-[16px] mt-2">
-          <div className="font-medium">Average Occupancy: {zoneData?.occupancy || "0%"}</div>
+          {!zoneName.includes("Multi Purpose Room") && (
+            <div className="font-medium">
+              Average Occupancy: {zoneData?.occupancy || "0%"}
+            </div>
+          )}
           <div>
             CO<sub>2</sub> {zoneData?.co2 || 580}
             <sub>ppm</sub>
           </div>
-          <div> <span className="pr-2">Temperature</span>{zoneData?.temp || 25} °C</div>
-          <div><span className=" pr-2">Humidity</span>{zoneData?.humidity || 64}%</div>
+          <div>
+            {" "}
+            <span className="pr-2">Temperature</span>
+            {zoneData?.temp || 25} °C
+          </div>
+          <div>
+            <span className=" pr-2">Humidity</span>
+            {zoneData?.humidity || 64}%
+          </div>
         </div>
-        
+
         {/* Computer Room Info */}
-        {computerRoomInfo}
+        {roomInfo}
       </div>
     );
   };
- 
+
   // Get the available zones for the current floor
   const getZonesForCurrentFloor = () => {
     return floorZoneMapping[activeFloor] || [];
   };
- 
+
+  const getPM25Level = (value) => {
+    if (value <= 12) return { level: "Good", color: "text-green-500" };
+    if (value <= 35.4) return { level: "Moderate", color: "text-yellow-500" };
+    if (value <= 55.4)
+      return { level: "Unhealthy for Sensitive", color: "text-orange-600" };
+    if (value <= 150.4) return { level: "Unhealthy", color: "text-red-500" };
+    if (value <= 250.4)
+      return { level: "Very Unhealthy", color: "text-purple-600" };
+    return { level: "Hazardous", color: "text-red-800" };
+  };
+
+  const getPM10Level = (value) => {
+    if (value <= 54) return { level: "Good", color: "text-green-500" };
+    if (value <= 154) return { level: "Moderate", color: "text-yellow-500" };
+    if (value <= 254)
+      return { level: "Unhealthy for Sensitive", color: "text-orange-600" };
+    if (value <= 354) return { level: "Unhealthy", color: "text-red-500" };
+    if (value <= 424)
+      return { level: "Very Unhealthy", color: "text-purple-600" };
+    return { level: "Hazardous", color: "text-red-800" };
+  };
+
   return (
     <div>
       {/* Sidebar */}
@@ -446,7 +809,7 @@ const Viewer3 = () => {
         setIsSidebarOpen={setIsSidebarOpen}
         logout={logout}
       />
- 
+
       {/* Header */}
       <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
         <div className="flex items-center h-full">
@@ -467,25 +830,59 @@ const Viewer3 = () => {
           className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
         />
       </header>
- 
+
       {/* Content */}
       <div className="px-6 lg:px-14 xl:px-14 2xl:px-14 pb-6">
         {/* date and weather */}
         <div className="mt-[74px] lg:mt-32 xl:mt-[130px] flex justify-between items-center text-[18px] sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-semibold mb-8">
           <div className="text-gray-700">{formattedDate}</div>
+          <div className="text-gray-700 md:text-xl sm:text-lg lg:text-[22px] text-[16px] flex flex-wrap items-center gap-4">
           {weather && (
-            <div className="text-gray-700 md:text-xl sm:text-lg lg:text-[22px] text-[16px] flex items-center space-x-4">
-              <div className="flex items-center">
-                <FaTemperatureHigh className="mr-2 text-red-400" />{" "}
-                {weather.temp}°C
+              <div className="flex items-center mr-1">
+                <FaTemperatureHigh className="mr-2 text-red-400" /> {weather.temp}°C
+                <FaTint className="mx-2 text-blue-300" /> {weather.humidity}%
               </div>
-              <div className="flex items-center">
-                <FaTint className="mr-2 text-blue-300" /> {weather.humidity}%
+            )}
+            {airQuality && (
+              <div className="flex  space-x-4">
+                {/* PM2.5 - More prominent with health indicator */}
+                <div className="flex items-center">
+                  <FaWind className="mr-2 text-gray-600" />
+                  <div>
+                    <div className="flex items-center">
+                      <span className="font-semibold">PM2.5:</span>
+                      <span
+                        className={`ml-2 ${
+                          getPM25Level(airQuality.pm25).color
+                        } font-bold`}
+                      >
+                        {airQuality.pm25.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* PM10 - Secondary importance */}
+                <div className="flex items-center">
+                  <FaWind className="mr-2 text-gray-400" />
+                  <div>
+                    <div className="flex items-center">
+                      <span>PM10:</span>
+                      <span
+                        className={`ml-2 ${
+                          getPM10Level(airQuality.pm10).color
+                        }`}
+                      >
+                        {airQuality.pm10.toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
- 
+
         {/* viewer section */}
         <div className="rounded-xl border border-[#E2E2E4] shadow-[0_1px_2px_0_#dedede] bg-white">
           {/* title*/}
@@ -493,7 +890,7 @@ const Viewer3 = () => {
             <p className="lg:text-3xl md:text-2xl sm:text-xl text-[22px] font-bold pb-2">
               Live Dashboard
             </p>
- 
+
             {/* Floor navigation tabs */}
             <div className="flex space-x-4 border-b border-gray-200">
               {Object.keys(floorMaps).map((floor) => (
@@ -511,7 +908,7 @@ const Viewer3 = () => {
               ))}
             </div>
           </div>
- 
+
           {/* viewer frame - show based on active floor */}
           <div className="px-4 w-full">
             <div className="relative w-full" style={{ paddingTop: "52.25%" }}>
@@ -523,18 +920,20 @@ const Viewer3 = () => {
               />
             </div>
           </div>
- 
+
           {/* Zone information */}
           <div className="px-8 py-8 grid grid-cols-1 md:grid-cols-3 gap-8">
             {getZonesForCurrentFloor().map((zoneName) => (
               <ZoneIndicator
                 key={zoneName}
                 zoneName={zoneName}
-                zoneData={zoneData[activeFloor] ? zoneData[activeFloor][zoneName] : null}
+                zoneData={
+                  zoneData[activeFloor] ? zoneData[activeFloor][zoneName] : null
+                }
               />
             ))}
           </div>
- 
+
           {/* Legend */}
           <div className="sm:px-8 sm:py-6 mb-6 sm:mb-0 flex flex-col sm:flex-row items-left sm:justify-end justify-start sm:space-x-2 space-y-1 text-[16px]">
             <div className="flex items-center">
@@ -579,5 +978,5 @@ const Viewer3 = () => {
     </div>
   );
 };
- 
+
 export default Viewer3;

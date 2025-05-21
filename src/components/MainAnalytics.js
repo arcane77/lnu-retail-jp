@@ -4,6 +4,8 @@ import Sidebar from "./Sidebar";
 import BuildingAnalytics from "./BuildingAnalytics";
 import Analytics from "./Analytics"; 
 import ZoneAnalytics from "./ZoneAnalytics";
+import IAQAnalytics from "./IAQAnalytics"; 
+import { FaWind } from "react-icons/fa";
 import axios from "axios";
 
 const MainAnalytics = () => {
@@ -165,6 +167,22 @@ const MainAnalytics = () => {
                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
                 )}
               </button>
+              <button
+                className={`px-6 py-4 text-sm md:text-base font-medium transition-all duration-200 ease-in-out flex items-center justify-center relative ${
+                  activeTab === "iaq"
+                    ? "text-blue-600"
+                    : "text-gray-700 hover:text-gray-900"
+                }`}
+                onClick={() => handleTabChange("iaq")}
+              >
+                <FaWind 
+                  className={`w-4 h-4 mr-2 ${activeTab === "iaq" ? "text-blue-600" : "text-gray-600"}`}
+                />
+                IAQ
+                {activeTab === "iaq" && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
+                )}
+              </button>
             </div>
           </div>
 
@@ -185,6 +203,11 @@ const MainAnalytics = () => {
             {activeTab === "zones" && (
               <div className="zones-tab">
                 <ZoneAnalytics />
+              </div>
+            )}
+            {activeTab === "iaq" && (
+              <div className="iaq-tab">
+                <IAQAnalytics />
               </div>
             )}
           </div>

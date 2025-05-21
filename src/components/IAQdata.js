@@ -56,7 +56,7 @@ const useIAQData = () => {
     } else if (["3C-LT301", "3C-E305"].includes(location) || 
                location.startsWith("3C") || 
                location.startsWith("3F")) {
-      return { floor: "3F", zone: "Zone B" }; // Keep 3F as Zone B as per viewer3.js
+      return { floor: "3F", zone: "Floor" }; // Keep 3F as Floor as per viewer3.js
     }
 
     // Regular parsing for other locations
@@ -70,7 +70,7 @@ const useIAQData = () => {
         if (zoneChar === 'A' || zoneChar === 'S') {
           zone = 'A'; // 'S' for South -> Zone A
         } else if (zoneChar === 'B' || zoneChar === 'C' && floor !== '1' && floor !== '2') {
-          zone = 'B'; // 'C' for Central -> Zone B (except for 1C and 2C)
+          zone = 'B'; // 'C' for Central -> Floor (except for 1C and 2C)
         } else if (zoneChar === 'N' || zoneChar === 'C' && (floor === '1' || floor === '2')) {
           zone = 'C'; // 'N' for North -> Zone C, and 1C/2C -> Zone C
         }
@@ -93,7 +93,7 @@ const useIAQData = () => {
     
     // Handle special case for 3rd floor as mentioned
     if (floor === '3') {
-      zone = 'B'; // Only Zone B exists on 3F according to viewer3.js
+      zone = 'B'; // Only Floor exists on 3F according to viewer3.js
     }
     
     return { 
@@ -132,9 +132,18 @@ const useIAQData = () => {
       } else if (sensor.id === "IAQ-L10") {
         floor = "MF";
         zone = "Zone C";
-      } else if (sensor.id === "IAQ-P05" || sensor.id === "IAQ-L17" || sensor.id === "IAQ-L18") {
+      } else if (["IAQ-L14", "IAQ-L16", "IAQ-L18", "IAQ-P05"].includes(sensor.id)) {
+        // These sensors contribute to 3F Zone B (average)
         floor = "3F";
-        zone = "Zone B"; // 3F only has Zone B according to viewer3.js
+        zone = "Floor";
+      } else if (sensor.id === "IAQ-L15") {
+        // IAQ-L15 for Multi Purpose Room 2
+        floor = "3F";
+        zone = "Multi Purpose Room 2";
+      } else if (sensor.id === "IAQ-L17") {
+        // IAQ-L17 for Multi Purpose Room 1
+        floor = "3F";
+        zone = "Multi Purpose Room 1";
       } else {
         // Regular parsing for other sensors
         const parsedLocation = parseLocation(sensor.location);
