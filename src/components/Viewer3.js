@@ -574,9 +574,9 @@ const Viewer3 = () => {
   // Floor map URLs
   const floorMaps = {
     "1/F": "https://pwwpdev.github.io/Lingnan/first_floor_dos_overlay.html",
-    "M/F": "https://pwwpdev.github.io/Lingnan/m_floor_dos.html",
-    "2/F": "https://pwwpdev.github.io/Lingnan/second_floor_dos.html",
-    "3/F": "https://pwwpdev.github.io/Lingnan/third_floor_dos.html",
+    "M/F": "https://pwwpdev.github.io/Lingnan/m_floor_dos_overlay.html",
+    "2/F": "https://pwwpdev.github.io/Lingnan/second_floor_dos_overlay.html",
+    "3/F": "https://pwwpdev.github.io/Lingnan/third_floor_dos_overlay.html",
   };
 
   // SVG icons for different occupancy statuses with redesigned human shapes
@@ -706,18 +706,10 @@ const Viewer3 = () => {
     let roomInfo = null;
 
     if (activeFloor === "1/F") {
-      if (zoneName === "Zone A") {
+      if (zoneName === "Zone B") {
         roomInfo = (
-          <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
-            <div className="flex items-center text-[17px] font-semibold mb-1">
-              Computer Room 2:{" "}
-              <div className=" ml-3 font-bold">{cpr2Data?.occupancy || 0}</div>
-            </div>
-          </div>
-        );
-      } else if (zoneName === "Zone C") {
-        roomInfo = (
-          <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
+          <div>
+            <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 mb-4 w-fit rounded-lg">
             <div className="flex items-center text-[17px] font-semibold mb-1">
               Computer Room 1:{" "}
               <div className=" ml-3 font-bold">
@@ -725,8 +717,15 @@ const Viewer3 = () => {
               </div>
             </div>
           </div>
+            <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
+              <div className="flex items-center text-[17px] font-semibold mb-1">
+                Computer Room 2:{" "}
+                <div className=" ml-3 font-bold">{cpr2Data?.occupancy || 0}</div>
+              </div>
+            </div>
+          </div>
         );
-      }
+      } 
     }
 
     return (
@@ -838,8 +837,8 @@ const Viewer3 = () => {
           <div className="text-gray-700">{formattedDate}</div>
           <div className="text-gray-700 md:text-xl sm:text-lg lg:text-[22px] text-[16px] flex flex-wrap items-center gap-4">
           {weather && (
-              <div className="flex items-center mr-1">
-                <FaTemperatureHigh className="mr-2 text-red-400" /> {weather.temp}°C
+              <div className="flex items-center mr-1 space-x-5">
+                <FaTemperatureHigh className="mx-2 text-red-400" /> {weather.temp}°C
                 <FaTint className="mx-2 text-blue-300" /> {weather.humidity}%
               </div>
             )}

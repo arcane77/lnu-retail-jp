@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Thermometer, Droplets, Frown } from "lucide-react";
+import { AlertCircle, CheckCircle } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -13,6 +14,7 @@ import {
 } from "recharts";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import WeatherAirQuality from "./WeatherAirQuality";
 
 const IAQ = () => {
   const sidebarRef = useRef(null);
@@ -36,6 +38,479 @@ const IAQ = () => {
   const [expandedRows, setExpandedRows] = useState({});
   const [graphData, setGraphData] = useState({});
   const [isLoadingGraphData, setIsLoadingGraphData] = useState({});
+
+  // Helper function to get alert sensors
+  const getAlertSensors = () => {
+    if (!data || data.length === 0) return {};
+
+    const now = new Date();
+
+    const alerts = {
+      notUpdated: [],
+      highestPM25: null,
+      highestPM10: null,
+      highestTemp: null,
+      lowestTemp: null,
+      highHumidity: [],
+      highestCO2: null,
+    };
+
+    // Find sensors not updated for more than 1 hour
+    data.forEach((sensor) => {
+      if (sensor.timestamp && sensor.timestamp !== "-") {
+        const sensorTime = new Date(sensor.timestamp);
+        const timeDiffMs = now - sensorTime;
+        const timeDiffHours = timeDiffMs / (1000 * 60 * 60); // Convert to hours
+
+        if (timeDiffHours > 1) {
+          alerts.notUpdated.push(sensor);
+        }
+      }
+    });
+
+    // Find highest PM2.5
+    const validPM25 = data.filter(
+      (s) => s.pm2_5 && s.pm2_5 !== "-" && !isNaN(parseFloat(s.pm2_5))
+    );
+    if (validPM25.length > 0) {
+      alerts.highestPM25 = validPM25.reduce((max, sensor) =>
+        parseFloat(sensor.pm2_5) > parseFloat(max.pm2_5) ? sensor : max
+      );
+    }
+
+    // Find highest PM10
+    const validPM10 = data.filter(
+      (s) => s.pm10 && s.pm10 !== "-" && !isNaN(parseFloat(s.pm10))
+    );
+    if (validPM10.length > 0) {
+      alerts.highestPM10 = validPM10.reduce((max, sensor) =>
+        parseFloat(sensor.pm10) > parseFloat(max.pm10) ? sensor : max
+      );
+    }
+
+    // Find highest temperature
+    const validTemp = data.filter(
+      (s) =>
+        s.temperature &&
+        s.temperature !== "-" &&
+        !isNaN(parseFloat(s.temperature))
+    );
+    if (validTemp.length > 0) {
+      alerts.highestTemp = validTemp.reduce((max, sensor) =>
+        parseFloat(sensor.temperature) > parseFloat(max.temperature)
+          ? sensor
+          : max
+      );
+      alerts.lowestTemp = validTemp.reduce((min, sensor) =>
+        parseFloat(sensor.temperature) < parseFloat(min.temperature)
+          ? sensor
+          : min
+      );
+    }
+
+    // highest and lowest humidity
+const validHumidity = data.filter(
+  (s) =>
+    s.humidity &&
+    s.humidity !== "-" &&
+    !isNaN(parseFloat(s.humidity))
+);
+if (validHumidity.length > 0) {
+  alerts.highestHumidity = validHumidity.reduce((max, sensor) =>
+    parseFloat(sensor.humidity) > parseFloat(max.humidity)
+      ? sensor
+      : max
+  );
+  alerts.lowestHumidity = validHumidity.reduce((min, sensor) =>
+    parseFloat(sensor.humidity) < parseFloat(min.humidity)
+      ? sensor
+      : min
+  );
+}
+
+    // Find highest CO2
+    const validCO2 = data.filter(
+      (s) => s.co2 && s.co2 !== "-" && !isNaN(parseFloat(s.co2))
+    );
+    if (validCO2.length > 0) {
+      alerts.highestCO2 = validCO2.reduce((max, sensor) =>
+        parseFloat(sensor.co2) > parseFloat(max.co2) ? sensor : max
+      );
+    }
+
+    return alerts;
+  };
+
+  const AlertArea = ({ alerts }) => {
+    if (!alerts) return null;
+
+    const hasAlerts = true; // Always show AlertArea since we always show sensor status
+
+    if (!hasAlerts) return null;
+
+    return (
+      <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6 mb-8 shadow-sm">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold text-red-800 flex items-center">
+            <div className="bg-red-100 p-2 rounded-full mr-3">
+              <svg
+                className="w-6 h-6 text-red-600"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            Alert Area
+          </h3>
+          <div className="text-sm text-red-600 bg-red-100 px-3 py-1 rounded-full font-medium">
+            Active Alerts
+          </div>
+        </div>
+
+        {/* Alerts Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {/* Highest CO2 */}
+          {alerts.highestCO2 && (
+            <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <div className="bg-gray-100 p-2 rounded-lg mr-3">
+                    <Frown className="w-5 h-5 text-gray-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-800">Highest CO2</h4>
+                    <p className="text-xs text-gray-500">Carbon Dioxide</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-gray-700">
+                    {alerts.highestCO2.co2}
+                  </div>
+                  <div className="text-xs text-gray-500">ppm</div>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-medium text-sm text-gray-800">
+                      {alerts.highestCO2.id}
+                    </span>
+                    <p className="text-xs text-gray-600">
+                      {alerts.highestCO2.location}
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {alerts.highestCO2.last_updated?.split(" ")[1] || "N/A"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Highest PM2.5 */}
+          {alerts.highestPM25 && (
+            <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <div className="bg-red-100 p-2 rounded-lg mr-3">
+                    <Frown className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-800">
+                      Highest PM2.5
+                    </h4>
+                    <p className="text-xs text-gray-500">Air Quality</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-red-600">
+                    {alerts.highestPM25.pm2_5}
+                  </div>
+                  <div className="text-xs text-gray-500">μg/m³</div>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-medium text-sm text-gray-800">
+                      {alerts.highestPM25.id}
+                    </span>
+                    <p className="text-xs text-gray-600">
+                      {alerts.highestPM25.location}
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {alerts.highestPM25.last_updated?.split(" ")[1] || "N/A"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Highest PM10 */}
+          {alerts.highestPM10 && (
+            <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <div className="bg-red-100 p-2 rounded-lg mr-3">
+                    <Frown className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-800">
+                      Highest PM10
+                    </h4>
+                    <p className="text-xs text-gray-500">Air Quality</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-red-600">
+                    {alerts.highestPM10.pm10}
+                  </div>
+                  <div className="text-xs text-gray-500">μg/m³</div>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-medium text-sm text-gray-800">
+                      {alerts.highestPM10.id}
+                    </span>
+                    <p className="text-xs text-gray-600">
+                      {alerts.highestPM10.location}
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {alerts.highestPM10.last_updated?.split(" ")[1] || "N/A"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Temperature Alerts */}
+          {(alerts.highestTemp || alerts.lowestTemp) && (
+            <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center mb-3">
+                <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                  <Thermometer className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-800">
+                    Temperature Extremes
+                  </h4>
+                  <p className="text-xs text-gray-500">High/Low Values</p>
+                </div>
+              </div>
+              <div className="space-x-4 flex">
+                {alerts.highestTemp && (
+                  <div className="bg-red-50 rounded-lg p-3 border border-red-100">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="text-xs font-medium text-red-700">
+                          HIGHEST
+                        </span>
+                        <p className="font-medium text-sm text-gray-800">
+                          {alerts.highestTemp.id}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {alerts.highestTemp.location}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-red-600">
+                          {alerts.highestTemp.temperature}°C
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {alerts.highestTemp.last_updated?.split(" ")[1] ||
+                            "N/A"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {alerts.lowestTemp && (
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="text-xs font-medium text-blue-700">
+                          LOWEST
+                        </span>
+                        <p className="font-medium text-sm text-gray-800">
+                          {alerts.lowestTemp.id}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {alerts.lowestTemp.location}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-blue-600">
+                          {alerts.lowestTemp.temperature}°C
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {alerts.lowestTemp.last_updated?.split(" ")[1] ||
+                            "N/A"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Not Updated Sensors - Always Show */}
+          <div
+            className={`bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow ${
+              alerts.notUpdated && alerts.notUpdated.length > 0
+                ? "border-red-200"
+                : "border-green-200"
+            }`}
+          >
+            <div className="flex items-center mb-3">
+              <div
+                className={`p-2 rounded-lg mr-3 ${
+                  alerts.notUpdated && alerts.notUpdated.length > 0
+                    ? "bg-orange-100"
+                    : "bg-green-100"
+                }`}
+              >
+                {alerts.notUpdated && alerts.notUpdated.length > 0 ? (
+                  <AlertCircle className="w-5 h-5 text-orange-600" />
+                ) : (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                )}
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800">Sensor Status</h4>
+                <p className="text-xs text-gray-500">
+                  {alerts.notUpdated && alerts.notUpdated.length > 0
+                    ? `${alerts.notUpdated.length} sensors inactive >1hr`
+                    : "All sensors up to date"}
+                </p>
+              </div>
+            </div>
+
+            {alerts.notUpdated && alerts.notUpdated.length > 0 ? (
+              <div className="space-y-2">
+                {alerts.notUpdated.slice(0, 3).map((sensor) => (
+                  <div key={sensor.id} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-medium text-sm text-gray-800">
+                          {sensor.id}
+                        </span>
+                        <p className="text-xs text-gray-600">
+                          {sensor.location}
+                        </p>
+                      </div>
+                      <span className="text-xs text-red-500 bg-red-100 px-2 py-1 rounded-full">
+                        {sensor.last_updated?.split(" ")[1] || "N/A"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {alerts.notUpdated.length > 3 && (
+                  <p className="text-xs text-gray-500 text-center">
+                    +{alerts.notUpdated.length - 3} more sensors
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                <div className="flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-green-700 font-medium text-sm">
+                      ✓ All sensors are reporting
+                    </p>
+                    <p className="text-green-600 text-xs">
+                      No sensors inactive for more than 1 hour
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+         {/* Humidity Extremes */}
+{(alerts.highestHumidity || alerts.lowestHumidity) && (
+  <div className="bg-white border border-red-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex items-center mb-3">
+      <div className="bg-blue-100 p-2 rounded-lg mr-3">
+        <Droplets className="w-5 h-5 text-blue-600" />
+      </div>
+      <div>
+        <h4 className="font-semibold text-gray-800">
+          Humidity Extremes
+        </h4>
+        <p className="text-xs text-gray-500">High/Low Values</p>
+      </div>
+    </div>
+    <div className="space-x-4 flex flex-1">
+      {alerts.highestHumidity && (
+        <div className="bg-red-50 rounded-lg p-3 border border-red-100 flex-1">
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-xs font-medium text-red-700">
+                HIGHEST
+              </span>
+              <p className="font-medium text-sm text-gray-800">
+                {alerts.highestHumidity.id}
+              </p>
+              <p className="text-xs text-gray-600">
+                {alerts.highestHumidity.location}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-xl font-bold text-red-600">
+                {alerts.highestHumidity.humidity}%
+              </div>
+              <div className="text-xs text-gray-500">
+                {alerts.highestHumidity.last_updated?.split(" ")[1] ||
+                  "N/A"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {alerts.lowestHumidity && (
+        <div className="bg-blue-50 rounded-lg p-3 border border-blue-100 flex-1">
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-xs font-medium text-blue-700">
+                LOWEST
+              </span>
+              <p className="font-medium text-sm text-gray-800">
+                {alerts.lowestHumidity.id}
+              </p>
+              <p className="text-xs text-gray-600">
+                {alerts.lowestHumidity.location}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-xl font-bold text-blue-600">
+                {alerts.lowestHumidity.humidity}%
+              </div>
+              <div className="text-xs text-gray-500">
+                {alerts.lowestHumidity.last_updated?.split(" ")[1] ||
+                  "N/A"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+        </div>
+      </div>
+    );
+  };
 
   // In the toggleRowExpand function, replace the data filtering and processing section:
 
@@ -188,7 +663,7 @@ const IAQ = () => {
               data={completeHourlyData}
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3"  vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="hour"
                 label={{
@@ -238,18 +713,17 @@ const IAQ = () => {
                 />
               )}
               <Tooltip
-              formatter={(value, name) => {
-                if (value === null) return ["No data", name];
-                if (name === "temperature")
-                  return [`${value.toFixed(1)}°C`, "Temperature"];
-                if (name === "humidity")
-                  return [`${value.toFixed(1)}%`, "Humidity"];
-                if (name === "co2")
-                  return [`${value.toFixed(1)} ppm`, "CO2"];
-                return [value, name];
-              }}
-              labelFormatter={(hour) => `${hour}:00`}
-            />
+                formatter={(value, name) => {
+                  if (value === null) return ["No data", name];
+                  if (name === "temperature")
+                    return [`${value.toFixed(1)}°C`, "Temperature"];
+                  if (name === "humidity")
+                    return [`${value.toFixed(1)}%`, "Humidity"];
+                  if (name === "co2") return [`${value.toFixed(1)} ppm`, "CO2"];
+                  return [value, name];
+                }}
+                labelFormatter={(hour) => `${hour}:00`}
+              />
               <Legend />
               <Line
                 yAxisId="temp"
@@ -296,7 +770,7 @@ const IAQ = () => {
                 data={completeHourlyData}
                 margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3"  vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="hour"
                   label={{
@@ -326,20 +800,20 @@ const IAQ = () => {
                   stroke="#ab4f2e"
                 />
                 <Tooltip
-                formatter={(value, name, props) => {
-                  if (value === null) return ["No data", name];
-                  if (name === "pm2_5")
-                    return [`${value.toFixed(2)} μg/m³`, "PM2.5"];
-                  if (name === "pm10")
-                    return [`${value.toFixed(1)} μg/m³`, "PM10"];
-                  if (name === "co2")
-                    return [`${value.toFixed(1)} ppm`, "CO2"];
-                  if (name === "tvoc")
-                    return [`${value.toFixed(1)} ppb`, "TVOC"];
-                  return [value, name];
-                }}
-                labelFormatter={(hour) => `${hour}:00`}
-              />
+                  formatter={(value, name, props) => {
+                    if (value === null) return ["No data", name];
+                    if (name === "pm2_5")
+                      return [`${value.toFixed(2)} μg/m³`, "PM2.5"];
+                    if (name === "pm10")
+                      return [`${value.toFixed(1)} μg/m³`, "PM10"];
+                    if (name === "co2")
+                      return [`${value.toFixed(1)} ppm`, "CO2"];
+                    if (name === "tvoc")
+                      return [`${value.toFixed(1)} ppb`, "TVOC"];
+                    return [value, name];
+                  }}
+                  labelFormatter={(hour) => `${hour}:00`}
+                />
                 <Legend />
                 <Line
                   yAxisId="left"
@@ -528,7 +1002,7 @@ const IAQ = () => {
     // Call the function initially
     fetchHKOTemperature();
 
-    // Set up interval to fetch HKO data every 90s 
+    // Set up interval to fetch HKO data every 90s
     const hkoInterval = setInterval(fetchHKOTemperature, 120000);
 
     return () => clearInterval(hkoInterval);
@@ -752,9 +1226,15 @@ const IAQ = () => {
     return [...dataToSort].sort((a, b) => {
       // Handle numerical sorting for numeric columns
       if (
-        ["co2", "humidity", "temperature", "pm10", "pm2_5", "tvoc"].includes(
-          sortConfig.key
-        )
+        [
+          "co2",
+          "humidity",
+          "temperature",
+          "pm10",
+          "pm2_5",
+          "tvoc",
+          "battery",
+        ].includes(sortConfig.key)
       ) {
         const aValue = parseFloat(a[sortConfig.key]) || 0;
         const bValue = parseFloat(b[sortConfig.key]) || 0;
@@ -842,15 +1322,12 @@ const IAQ = () => {
             Indoor Air Quality
           </h2>
           <div className="flex space-x-4">
-            {hkoTemperature && (
-              <div className="bg-white py-2 px-4 rounded-xl border border-[#d4d4d4]">
-                <p className="font-medium text-sm sm:text-lg">
-                  HKO Temperature: {hkoTemperature}°C
-                </p>
-              </div>
-            )}
+            <WeatherAirQuality className="text-[16px] md:text-xl sm:text-lg lg:text-[22px]" />
           </div>
         </div>
+
+        {/* Replace the AlertArea line with this */}
+        {data.length > 0 && <AlertArea alerts={getAlertSensors()} />}
 
         <div
           className="rounded-xl custom-s mb-8 border border-[#d4d4d4] overflow-hidden"
@@ -925,15 +1402,15 @@ const IAQ = () => {
 
                   <th className="px-3 py-4">
                     <div className="flex items-center justify-center">
-                      <span className="mr-1">CO₂</span>
+                      <span className="mr-1">Temperature</span>
                       <button
-                        onClick={() => requestSort("co2")}
+                        onClick={() => requestSort("temperature")}
                         className="h-4 w-4 flex items-center justify-center"
-                        aria-label="Sort by CO₂"
+                        aria-label="Sort by Temperature"
                       >
                         <div
                           className={`w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent ${
-                            sortConfig.key === "co2"
+                            sortConfig.key === "temperature"
                               ? sortConfig.direction === "ascending"
                                 ? "border-b-black transform rotate-0"
                                 : "border-b-black transform rotate-180"
@@ -967,36 +1444,15 @@ const IAQ = () => {
 
                   <th className="px-3 py-4">
                     <div className="flex items-center justify-center">
-                      <span className="mr-1">Temperature</span>
+                      <span className="mr-1">CO₂</span>
                       <button
-                        onClick={() => requestSort("temperature")}
+                        onClick={() => requestSort("co2")}
                         className="h-4 w-4 flex items-center justify-center"
-                        aria-label="Sort by Temperature"
+                        aria-label="Sort by CO₂"
                       >
                         <div
                           className={`w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent ${
-                            sortConfig.key === "temperature"
-                              ? sortConfig.direction === "ascending"
-                                ? "border-b-black transform rotate-0"
-                                : "border-b-black transform rotate-180"
-                              : "border-b-gray-500"
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </th>
-
-                  <th className="px-3 py-4">
-                    <div className="flex items-center justify-center">
-                      <span className="mr-1">Pm10</span>
-                      <button
-                        onClick={() => requestSort("pm10")}
-                        className="h-4 w-4 flex items-center justify-center"
-                        aria-label="Sort by Pm10"
-                      >
-                        <div
-                          className={`w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent ${
-                            sortConfig.key === "pm10"
+                            sortConfig.key === "co2"
                               ? sortConfig.direction === "ascending"
                                 ? "border-b-black transform rotate-0"
                                 : "border-b-black transform rotate-180"
@@ -1018,6 +1474,27 @@ const IAQ = () => {
                         <div
                           className={`w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent ${
                             sortConfig.key === "pm2_5"
+                              ? sortConfig.direction === "ascending"
+                                ? "border-b-black transform rotate-0"
+                                : "border-b-black transform rotate-180"
+                              : "border-b-gray-500"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </th>
+
+                  <th className="px-3 py-4">
+                    <div className="flex items-center justify-center">
+                      <span className="mr-1">Pm10</span>
+                      <button
+                        onClick={() => requestSort("pm10")}
+                        className="h-4 w-4 flex items-center justify-center"
+                        aria-label="Sort by Pm10"
+                      >
+                        <div
+                          className={`w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent ${
+                            sortConfig.key === "pm10"
                               ? sortConfig.direction === "ascending"
                                 ? "border-b-black transform rotate-0"
                                 : "border-b-black transform rotate-180"
@@ -1111,6 +1588,26 @@ const IAQ = () => {
                       </button>
                     </div>
                   </th>
+                  <th className="px-3 py-4">
+                    <div className="flex items-center justify-center">
+                      <span className="mr-1">Battery</span>
+                      <button
+                        onClick={() => requestSort("battery")}
+                        className="h-4 w-4 flex items-center justify-center"
+                        aria-label="Sort by Battery"
+                      >
+                        <div
+                          className={`w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent ${
+                            sortConfig.key === "battery"
+                              ? sortConfig.direction === "ascending"
+                                ? "border-b-black transform rotate-0"
+                                : "border-b-black transform rotate-180"
+                              : "border-b-gray-500"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </th>
                 </tr>
               </thead>
 
@@ -1163,6 +1660,24 @@ const IAQ = () => {
                         <td className="text-center border-b border-gray-300 px-4 py-2">
                           {sensor.area}
                         </td>
+
+                        <td
+                          className={`px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base ${
+                            isHigherThanHKO(sensor.temperature)
+                              ? "text-red-600 font-medium"
+                              : ""
+                          }`}
+                        >
+                          {sensor.temperature || "-"}
+                          {isHigherThanHKO(sensor.temperature) && (
+                            <span className="ml-1">↑</span>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base">
+                          {sensor.humidity || "-"}
+                        </td>
+
                         <td className="px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base relative">
                           {sensor.co2 || "-"}
                           {isMetricExceeding("co2", exceedingMetrics) && (
@@ -1196,54 +1711,7 @@ const IAQ = () => {
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base">
-                          {sensor.humidity || "-"}
-                        </td>
-                        <td
-                          className={`px-3 py-4 border-b border-gray-300 text-center text-sm sm:text-base ${
-                            isHigherThanHKO(sensor.temperature)
-                              ? "text-red-600 font-medium"
-                              : ""
-                          }`}
-                        >
-                          {sensor.temperature || "-"}
-                          {isHigherThanHKO(sensor.temperature) && (
-                            <span className="ml-1">↑</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
-                          {sensor.pm10 || "-"}
-                          {isMetricExceeding("pm10", exceedingMetrics) && (
-                            <div className="inline-block pl-2 relative group">
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5 text-red-600 inline"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                              <div className="absolute hidden group-hover:block z-50 bg-white border border-gray-300 rounded p-2 shadow-lg left-6 top-0 w-48 text-xs">
-                                <p className="font-semibold mb-1">
-                                  Value exceeding threshold:
-                                </p>
-                                <p>
-                                  PM10: {sensor.pm10} (
-                                  {
-                                    exceedingMetrics.find(
-                                      (m) => m.name === "pm10"
-                                    )?.percent
-                                  }
-                                  % above avg)
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </td>
+
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
                           {sensor.pm2_5 || "-"}
                           {isMetricExceeding("pm2_5", exceedingMetrics) && (
@@ -1277,6 +1745,41 @@ const IAQ = () => {
                             </div>
                           )}
                         </td>
+
+                        <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
+                          {sensor.pm10 || "-"}
+                          {isMetricExceeding("pm10", exceedingMetrics) && (
+                            <div className="inline-block pl-2 relative group">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5 text-red-600 inline"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <div className="absolute hidden group-hover:block z-50 bg-white border border-gray-300 rounded p-2 shadow-lg left-6 top-0 w-48 text-xs">
+                                <p className="font-semibold mb-1">
+                                  Value exceeding threshold:
+                                </p>
+                                <p>
+                                  PM10: {sensor.pm10} (
+                                  {
+                                    exceedingMetrics.find(
+                                      (m) => m.name === "pm10"
+                                    )?.percent
+                                  }
+                                  % above avg)
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </td>
+
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300 relative">
                           {sensor.tvoc || "-"}
                           {isMetricExceeding("tvoc", exceedingMetrics) && (
@@ -1352,6 +1855,10 @@ const IAQ = () => {
                         <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300">
                           {sensor.last_updated || "-"}
                         </td>
+
+                        <td className="px-3 py-4 text-center text-sm sm:text-base border-b border-gray-300">
+                          {sensor.battery ? `${sensor.battery}%` : "-"}
+                        </td>
                         <ChevronRight
                           className={`h-5 w-5 mt-8 mr-2 text-gray-600 transition-transform ${
                             isExpanded ? "rotate-90" : ""
@@ -1361,7 +1868,7 @@ const IAQ = () => {
                       {isExpanded && (
                         <tr>
                           <td
-                            colSpan="12"
+                            colSpan="13"
                             className="border-b border-gray-300 bg-gray-50 p-0"
                           >
                             {isLoadingGraphData[sensor.id] ? (

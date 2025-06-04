@@ -163,7 +163,6 @@ const Analytics = () => {
   };
 
   // Process API data and group by floors
-  // Replace or update the processApiData function in Analytics.js to track peak correctly
   const processApiData = (data) => {
     // Group by floor
     const groupedByFloor = {};
@@ -171,12 +170,8 @@ const Analytics = () => {
     data.forEach((item) => {
       const { floor_id, zone_name, data: zoneData } = item;
 
-      // Skip Main-Entrance zone and Relocated zone as requested
-      if (
-        zone_name === "Main-Entrance" ||
-        zone_name.toLowerCase() === "relocated"
-      )
-        return;
+      // Skip only Relocated zone, keep Main-Entrance for 1F calculation
+      if (zone_name.toLowerCase() === "relocated") return;
 
       if (!groupedByFloor[floor_id]) {
         groupedByFloor[floor_id] = {
@@ -206,8 +201,6 @@ const Analytics = () => {
           groupedByFloor[floor_id].peakZone = zone_name;
         }
 
-      
-
         // Store zone data with exact values from API
         groupedByFloor[floor_id].zones.push({
           zone_name,
@@ -219,7 +212,32 @@ const Analytics = () => {
       });
     });
 
-    
+    // Calculate 1F as Main-Entrance minus other floors
+    if (groupedByFloor["Main-Entrance"]) {
+      const mainEntrance = groupedByFloor["Main-Entrance"];
+      const mf = groupedByFloor["MF"] || { peakOccupancy: 0, zones: [] };
+      const f2 = groupedByFloor["2F"] || { peakOccupancy: 0, zones: [] };
+      const f3 = groupedByFloor["3F"] || { peakOccupancy: 0, zones: [] };
+      
+      // Calculate 1F occupancy
+      const calculatedOccupancy = Math.max(0, 
+        mainEntrance.peakOccupancy - mf.peakOccupancy - f2.peakOccupancy - f3.peakOccupancy
+      );
+      
+      // Create or update 1F entry
+      if (!groupedByFloor["1F"]) {
+        groupedByFloor["1F"] = {
+          zones: [],
+          peakOccupancy: calculatedOccupancy,
+          peakDate: mainEntrance.peakDate,
+          peakZone: "Calculated from Main-Entrance",
+          totalPercentage: 0,
+          zoneCount: 0,
+        };
+      } else {
+        groupedByFloor["1F"].peakOccupancy = calculatedOccupancy;
+      }
+    }
 
     setFloorData(groupedByFloor);
   };
@@ -281,6 +299,12 @@ const Analytics = () => {
         peakOccupancy: 0,
         totalPercentage: 0,
         count: 0,
+        floorTotals: {
+          "Main-Entrance": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
+          "MF": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
+          "2F": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
+          "3F": { totalOccupancy: 0, totalPercentage: 0, count: 0 },
+        }
       });
     }
 
@@ -288,16 +312,8 @@ const Analytics = () => {
     rawApiData.forEach((item) => {
       const { floor_id, zone_name, data: zoneData } = item;
 
-      // Skip Main-Entrance zone and Relocated zone
-      if (
-        zone_name === "Main-Entrance" ||
-        zone_name.toLowerCase() === "relocated"
-      ) {
-        return;
-      }
-
-      // Only consider the selected floor if we're filtering by floor
-      if (selectedFloor && floor_id !== selectedFloor) {
+      // Skip Relocated zone
+      if (zone_name.toLowerCase() === "relocated") {
         return;
       }
 
@@ -316,27 +332,71 @@ const Analytics = () => {
         // Get the entry for this date
         const dateEntry = dailyMap.get(datePart);
 
-        // Add to total occupancy and percentage
-        dateEntry.totalOccupancy += total_occupancy;
-        dateEntry.totalPercentage += occupancy_percentage;
-
-        // Update peak if this is higher
-        if (total_occupancy > dateEntry.peakOccupancy) {
-          dateEntry.peakOccupancy = total_occupancy;
+        // Store data by floor for 1F calculation
+        if (floor_id === "Main-Entrance" || zone_name === "Main-Entrance") {
+          dateEntry.floorTotals["Main-Entrance"].totalOccupancy += total_occupancy;
+          dateEntry.floorTotals["Main-Entrance"].totalPercentage += occupancy_percentage;
+          dateEntry.floorTotals["Main-Entrance"].count += 1;
+        } else if (floor_id === "MF") {
+          dateEntry.floorTotals["MF"].totalOccupancy += total_occupancy;
+          dateEntry.floorTotals["MF"].totalPercentage += occupancy_percentage;
+          dateEntry.floorTotals["MF"].count += 1;
+        } else if (floor_id === "2F") {
+          dateEntry.floorTotals["2F"].totalOccupancy += total_occupancy;
+          dateEntry.floorTotals["2F"].totalPercentage += occupancy_percentage;
+          dateEntry.floorTotals["2F"].count += 1;
+        } else if (floor_id === "3F") {
+          dateEntry.floorTotals["3F"].totalOccupancy += total_occupancy;
+          dateEntry.floorTotals["3F"].totalPercentage += occupancy_percentage;
+          dateEntry.floorTotals["3F"].count += 1;
         }
-
-        // Count data points for this day
-        dateEntry.count += 1;
       });
     });
 
     // Calculate daily averages and convert to array
-    const result = Array.from(dailyMap.values()).map((entry) => ({
-      date: entry.date,
-      averageOccupancy:
-        entry.count > 0 ? entry.totalPercentage / entry.count : 0,
-      peakOccupancy: entry.peakOccupancy,
-    }));
+    const result = Array.from(dailyMap.values()).map((entry) => {
+      let averageOccupancy = 0;
+      let peakOccupancy = 0;
+
+      if (selectedFloor === "1F") {
+        // Calculate 1F as Main-Entrance minus other floors
+        const mainEntranceAvg = entry.floorTotals["Main-Entrance"].count > 0 
+          ? entry.floorTotals["Main-Entrance"].totalPercentage / entry.floorTotals["Main-Entrance"].count 
+          : 0;
+        const mfAvg = entry.floorTotals["MF"].count > 0 
+          ? entry.floorTotals["MF"].totalPercentage / entry.floorTotals["MF"].count 
+          : 0;
+        const f2Avg = entry.floorTotals["2F"].count > 0 
+          ? entry.floorTotals["2F"].totalPercentage / entry.floorTotals["2F"].count 
+          : 0;
+        const f3Avg = entry.floorTotals["3F"].count > 0 
+          ? entry.floorTotals["3F"].totalPercentage / entry.floorTotals["3F"].count 
+          : 0;
+        
+        averageOccupancy = Math.max(0, mainEntranceAvg - mfAvg - f2Avg - f3Avg);
+        
+        // For peak, also calculate the difference
+        const mainEntrancePeak = entry.floorTotals["Main-Entrance"].totalOccupancy;
+        const mfPeak = entry.floorTotals["MF"].totalOccupancy;
+        const f2Peak = entry.floorTotals["2F"].totalOccupancy;
+        const f3Peak = entry.floorTotals["3F"].totalOccupancy;
+        
+        peakOccupancy = Math.max(0, mainEntrancePeak - mfPeak - f2Peak - f3Peak);
+      } else {
+        // For other floors, use the specific floor data
+        const floorData = entry.floorTotals[selectedFloor];
+        if (floorData && floorData.count > 0) {
+          averageOccupancy = floorData.totalPercentage / floorData.count;
+          peakOccupancy = floorData.totalOccupancy;
+        }
+      }
+
+      return {
+        date: entry.date,
+        averageOccupancy: averageOccupancy,
+        peakOccupancy: peakOccupancy,
+      };
+    });
 
     // Sort by date chronologically
     return result.sort((a, b) => a.date.localeCompare(b.date));
@@ -590,18 +650,18 @@ const Analytics = () => {
               >
                 <g
                   fill="#0e4a98"
-                  fill-rule="nonzero"
+                  fillRule="nonzero"
                   stroke="none"
-                  stroke-width="1"
-                  stroke-linecap="butt"
-                  stroke-linejoin="miter"
-                  stroke-miterlimit="10"
-                  stroke-dasharray=""
-                  stroke-dashoffset="0"
-                  font-family="none"
-                  font-weight="none"
-                  font-size="none"
-                  text-anchor="none"
+                  strokeWidth="1"
+                  strokeLinecap="butt"
+                  strokeLinejoin="miter"
+                  strokeMiterlimit="10"
+                  strokeDasharray=""
+                  strokeDashoffset="0"
+                  fontFamily="none"
+                  fontWeight="none"
+                  fontSize="none"
+                  textAnchor="none"
                 >
                   <g transform="scale(5.12,5.12)">
                     <path d="M25,2c-12.6907,0 -23,10.3093 -23,23c0,12.69071 10.3093,23 23,23c12.69071,0 23,-10.30929 23,-23c0,-12.6907 -10.30929,-23 -23,-23zM25,4c11.60982,0 21,9.39018 21,21c0,11.60982 -9.39018,21 -21,21c-11.60982,0 -21,-9.39018 -21,-21c0,-11.60982 9.39018,-21 21,-21zM25,11c-1.65685,0 -3,1.34315 -3,3c0,1.65685 1.34315,3 3,3c1.65685,0 3,-1.34315 3,-3c0,-1.65685 -1.34315,-3 -3,-3zM21,21v2h1h1v13h-1h-1v2h1h1h4h1h1v-2h-1h-1v-15h-1h-4z"></path>

@@ -43,44 +43,44 @@ const COLORS = [
 
 const REFRESH_INTERVAL = 30000;
 
-// CO2 threshold levels for color coding
+// co2 threshold levels for color coding
 const CO2_LEVELS = {
   GOOD: 700,
   MODERATE: 1000,
   HIGH: 1500,
 };
 
-// Temperature threshold levels for color coding
+// temperature threshold levels for color coding
 const TEMP_LEVELS = {
   LOW: 20,
   NORMAL: 31,
 };
 
-// Humidity threshold levels for color coding
+// humidity threshold levels for color coding
 const HUMIDITY_LEVELS = {
-  LOW: 30,
+  LOW: 40,
   NORMAL: 70,
 };
 
-// Get color for CO2 value
+//  color for CO2 value
 const getCO2Color = (value) => {
   if (value < CO2_LEVELS.GOOD) return "#4CAF50"; // Good - Green
   if (value < CO2_LEVELS.MODERATE) return "#FF9800"; // Moderate - Yellow
-  if (value < CO2_LEVELS.HIGH) return "#F44336"; // red
-  return "#F44336"; // Bad - Red
+  if (value < CO2_LEVELS.HIGH) return "#F44336"; //Orangish-red
+  return "#F44336"; // Bad - Orangish-red
 };
 
-// Get color for temperature value
+//color for temperature value
 const getTempColor = (value) => {
-  if (value < TEMP_LEVELS.LOW) return "#2196F3"; // Cold - Blue
-  if (value <= TEMP_LEVELS.NORMAL) return "#FFBB28"; // Normal - Yellow
+  if (value < TEMP_LEVELS.LOW) return "#4CAF50"; //  Good - Green
+  if (value <= TEMP_LEVELS.NORMAL) return "#FF9800"; // Normal - Yellow
   return "#F44336"; // Warm - Orangish-red
 };
 
-// Get color for humidity value
+// color for humidity value
 const getHumidityColor = (value) => {
-  if (value < HUMIDITY_LEVELS.LOW) return "#2196F3"; // Dry - Blue
-  if (value <= HUMIDITY_LEVELS.NORMAL) return "#0088FE"; // Normal - Yellow
+  if (value < HUMIDITY_LEVELS.LOW) return "#4CAF50"; // Dry - Green
+  if (value <= HUMIDITY_LEVELS.NORMAL) return "#FF9800"; // Normal - Yellow
   return "#F44336"; // Humid - Orangish-red
 };
 
@@ -258,7 +258,7 @@ const IAQAnalytics = () => {
 
   // Selected floor and zone
   const [selectedFloor, setSelectedFloor] = useState("1F");
-  const [selectedZone, setSelectedZone] = useState("Zone C");
+  const [selectedZone, setSelectedZone] = useState("Zone A");
 
   // Report type and date selection
   const [reportType, setReportType] = useState("daily");

@@ -45,11 +45,8 @@ const LiveFloor = ({ selectedFloor }) => {
     data.forEach((item) => {
       const { floor_id, zone_name, total_occupancy, occupancy_percentage, max_capacity } = item;
 
-      // Skip Main-Entrance zone and Relocated zone as requested
-      if (
-        zone_name === "Main-Entrance" ||
-        zone_name.toLowerCase() === "relocated"
-      )
+      // Skip only Relocated zone, keep Main-Entrance for 1F calculation
+      if (zone_name.toLowerCase() === "relocated")
         return;
 
       // Create unique key for this floor-zone combination
@@ -96,6 +93,43 @@ const LiveFloor = ({ selectedFloor }) => {
       floor.avgOccupancyPercentage =
         floor.zoneCount > 0 ? floor.totalPercentage / floor.zoneCount : 0;
     });
+
+    // Calculate 1F as Main-Entrance minus other floors for live data
+    if (groupedByFloor["Main-Entrance"]) {
+      const mainEntrance = groupedByFloor["Main-Entrance"];
+      const mf = groupedByFloor["MF"] || { totalOccupancy: 0, totalPercentage: 0, zoneCount: 0, zones: [] };
+      const f2 = groupedByFloor["2F"] || { totalOccupancy: 0, totalPercentage: 0, zoneCount: 0, zones: [] };
+      const f3 = groupedByFloor["3F"] || { totalOccupancy: 0, totalPercentage: 0, zoneCount: 0, zones: [] };
+      
+      // Calculate 1F occupancy
+      const calculated1FOccupancy = Math.max(0,
+        mainEntrance.totalOccupancy - mf.totalOccupancy - f2.totalOccupancy - f3.totalOccupancy
+      );
+      
+      // Calculate 1F percentage
+      const calculated1FPercentage = Math.max(0,
+        mainEntrance.avgOccupancyPercentage - mf.avgOccupancyPercentage - f2.avgOccupancyPercentage - f3.avgOccupancyPercentage
+      );
+      
+      // Create or update 1F entry
+      if (!groupedByFloor["1F"]) {
+        groupedByFloor["1F"] = {
+          totalOccupancy: calculated1FOccupancy,
+          totalPercentage: calculated1FPercentage,
+          avgOccupancyPercentage: calculated1FPercentage,
+          zoneCount: 1,
+          zones: [{
+            zone_name: "Calculated from Main-Entrance",
+            total_occupancy: calculated1FOccupancy,
+            occupancy_percentage: calculated1FPercentage,
+            max_capacity: mainEntrance.zones[0]?.max_capacity || 50
+          }]
+        };
+      } else {
+        groupedByFloor["1F"].totalOccupancy = calculated1FOccupancy;
+        groupedByFloor["1F"].avgOccupancyPercentage = calculated1FPercentage;
+      }
+    }
 
     setLiveOccupancyData(groupedByFloor);
   };

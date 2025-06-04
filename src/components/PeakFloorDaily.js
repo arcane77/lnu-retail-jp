@@ -68,11 +68,8 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
     data.forEach((item) => {
       const { floor_id, zone_name, data: zoneData } = item;
 
-      // Skip Main-Entrance zone and Relocated zone as done in other components
-      if (
-        zone_name === "Main-Entrance" ||
-        zone_name.toLowerCase() === "relocated"
-      ) {
+      // Skip only Relocated zone, keep Main-Entrance for 1F calculation
+      if (zone_name.toLowerCase() === "relocated") {
         return;
       }
 
@@ -109,11 +106,8 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
     data.forEach((item) => {
       const { floor_id, zone_name, data: zoneData } = item;
       
-      // Skip Main-Entrance zone and Relocated zone
-      if (
-        zone_name === "Main-Entrance" ||
-        zone_name.toLowerCase() === "relocated"
-      ) {
+      // Skip only Relocated zone
+      if (zone_name.toLowerCase() === "relocated") {
         return;
       }
       
@@ -174,6 +168,23 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
       }
     });
 
+    // Calculate 1F as Main-Entrance minus other floors
+    if (peakByFloor["Main-Entrance"]) {
+      const mainEntrance = peakByFloor["Main-Entrance"];
+      const mf = peakByFloor["MF"] || { peakOccupancy: 0 };
+      const f2 = peakByFloor["2F"] || { peakOccupancy: 0 };
+      const f3 = peakByFloor["3F"] || { peakOccupancy: 0 };
+      
+      peakByFloor["1F"] = {
+        peakOccupancy: Math.max(0, mainEntrance.peakOccupancy - mf.peakOccupancy - f2.peakOccupancy - f3.peakOccupancy),
+        timestamp: mainEntrance.timestamp,
+        maxCapacity: mainEntrance.maxCapacity,
+        peakHour: mainEntrance.peakHour,
+        peakZone: "Calculated from Main-Entrance",
+        hourlyPeaksByTimestamp: {}
+      };
+    }
+
     setHourlyPeakData(peakByFloor);
   };
 
@@ -188,11 +199,8 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
     data.forEach((item) => {
       const { floor_id, zone_name, total_occupancy, max_capacity } = item;
 
-      // Skip Main-Entrance zone and Relocated zone as requested
-      if (
-        zone_name === "Main-Entrance" ||
-        zone_name.toLowerCase() === "relocated"
-      ) {
+      // Skip only Relocated zone, keep Main-Entrance for 1F calculation
+      if (zone_name.toLowerCase() === "relocated") {
         return;
       }
       
@@ -222,6 +230,21 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
         groupedByFloor[floor_id].maxCapacity = max_capacity;
       }
     });
+
+    // Calculate 1F as Main-Entrance minus other floors for live data
+    if (groupedByFloor["Main-Entrance"]) {
+      const mainEntrance = groupedByFloor["Main-Entrance"];
+      const mf = groupedByFloor["MF"] || { totalOccupancy: 0 };
+      const f2 = groupedByFloor["2F"] || { totalOccupancy: 0 };
+      const f3 = groupedByFloor["3F"] || { totalOccupancy: 0 };
+      
+      groupedByFloor["1F"] = {
+        totalOccupancy: Math.max(0,
+          mainEntrance.totalOccupancy - mf.totalOccupancy - f2.totalOccupancy - f3.totalOccupancy
+        ),
+        maxCapacity: mainEntrance.maxCapacity
+      };
+    }
 
     setLiveOccupancyData(groupedByFloor);
   };

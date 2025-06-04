@@ -15,6 +15,14 @@ const UserManagement = () => {
     const [editRoleId, setEditRoleId] = useState(null);
     const [selectedRole, setSelectedRole] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
+    const [addUserError, setAddUserError] = useState("");
+    const [isAddingUser, setIsAddingUser] = useState(false);
+    const [passwordRequirements, setPasswordRequirements] = useState({
+      minLength: false,
+      hasUppercase: false,
+      hasNumber: false,
+      hasSpecialChar: false
+  });
 
   
     const [newUser, setNewUser] = useState({
@@ -81,6 +89,20 @@ useEffect(() => {
     fetchUsers();
 }, []);
 
+const checkPasswordRequirements = (password) => {
+  const requirements = {
+      minLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasNumber: /\d/.test(password),
+      hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+  };
+  
+  setPasswordRequirements(requirements);
+  
+  // Return true if all requirements are met
+  return Object.values(requirements).every(req => req);
+};
+
 
 // Delete user
 const confirmDeleteUser = async () => {
@@ -107,6 +129,27 @@ const confirmDeleteUser = async () => {
         console.error('Error deleting user:', error);
     }
    };
+
+   const validatePassword = (password) => {
+    const minLength = 8;
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    if (password.length < minLength) {
+        return "Password must be at least 8 characters long";
+    }
+    if (!hasUppercase) {
+        return "Password must contain at least one uppercase letter";
+    }
+    if (!hasNumber) {
+        return "Password must contain at least one number";
+    }
+    if (!hasSpecialChar) {
+        return "Password must contain at least one special character";
+    }
+    return "";
+};
 
 
 // Reset password
@@ -158,6 +201,15 @@ const handlePasswordReset = async () => {
 
 
 const handleAddUserClick = () => {
+    setNewUser({ username: "", email: "", password: "", role: "User" });
+    setPasswordRequirements({
+        minLength: false,
+        hasUppercase: false,
+        hasNumber: false,
+        hasSpecialChar: false
+    });
+    setAddUserError("");
+    setIsAddingUser(false);
     setIsAddUserOverlayOpen(true);
 };
 
@@ -230,6 +282,13 @@ const assignUserRole = async (userId, newRole) => {
 // Handler for Add User form submission
 const handleAddUserSubmit = async (e) => {
   e.preventDefault();
+  if (!Object.values(passwordRequirements).every(req => req)) {
+    return;
+}
+
+setIsAddingUser(true);
+setAddUserError(""); 
+
   try {
       const token = await getAccessToken();
 
@@ -290,6 +349,13 @@ const handleAddUserSubmit = async (e) => {
 
           // Reset form and close modal
           setNewUser({ email: "", password: "", role: "User" });
+          setPasswordRequirements({
+            minLength: false,
+            hasUppercase: false,
+            hasNumber: false,
+            hasSpecialChar: false
+        });
+        setAddUserError("");
           setIsAddUserOverlayOpen(false);
           // Show success overlay instead of alert
 setSuccessMessage("User added successfully!");
@@ -302,14 +368,26 @@ setTimeout(() => {
 }, 3000);
 
       } else {
-          const errorDetails = await response.text();
-          console.error("Failed to add user:", errorDetails);
-      }
-  } catch (error) {
-      console.error("Error adding user:", error);
-  }
+        const errorDetails = await response.json();
+        console.error("Failed to add user:", errorDetails);
+        
+        // Check for specific error types
+        if (response.status === 409 || errorDetails.message?.toLowerCase().includes('already exists') || 
+            errorDetails.message?.toLowerCase().includes('user exists')) {
+            setAddUserError("A user with this email already exists.");
+        } else if (errorDetails.message?.toLowerCase().includes('email')) {
+            setAddUserError("Invalid email address.");
+        } else {
+            setAddUserError(errorDetails.message || "Failed to add user. Please try again.");
+        }
+    }
+} catch (error) {
+    console.error("Error adding user:", error);
+    setAddUserError("An error occurred while adding the user. Please try again.");
+} finally {
+    setIsAddingUser(false);
+}
 };
-
   
   
 
@@ -446,18 +524,49 @@ const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
                   onChange={(e) => {
                     console.log("Email:", e.target.value);
                     setNewUser({ ...newUser, email: e.target.value });
+                    setAddUserError("");
                   }}
                   required
               />
               
               <input
-                  type="password"
-                  placeholder="Password"
-                  className="w-full border rounded p-2 mb-4"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  required
-              />
+    type="password"
+    placeholder="Password"
+    className="w-full border rounded p-2 mb-2"
+    value={newUser.password}
+    onChange={(e) => {
+        const password = e.target.value;
+        setNewUser({ ...newUser, password });
+        checkPasswordRequirements(password);
+    }}
+    required
+/>
+
+{/* Password Requirements - Grey by default, Red when not met */}
+<div className="mb-4 text-sm">
+    <p className="mb-1 font-medium text-gray-700">Password must contain:</p>
+    <ul className="space-y-0.5 text-xs">
+        <li className={passwordRequirements.minLength ? 'text-gray-500' : 'text-red-500'}>
+            • At least 8 characters long
+        </li>
+        <li className={passwordRequirements.hasUppercase ? 'text-gray-500' : 'text-red-500'}>
+            • One uppercase letter
+        </li>
+        <li className={passwordRequirements.hasNumber ? 'text-gray-500' : 'text-red-500'}>
+            • One number
+        </li>
+        <li className={passwordRequirements.hasSpecialChar ? 'text-gray-500' : 'text-red-500'}>
+            • One special character (!@#$%^&*(),.?":{}|&lt;&gt;)
+        </li>
+    </ul>
+</div>
+{/* Error Message */}
+{addUserError && (
+    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+        <p className="text-red-600 text-sm">{addUserError}</p>
+    </div>
+)}
+
               <select
                   className="w-full border rounded p-2 mb-4"
                   value={newUser.role}
@@ -467,11 +576,24 @@ const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
                   <option value="Admin">Admin</option>
               </select>
               <button
-                  type="submit"
-                  className="bg-[#88D89F] text-white w-full py-2 rounded-md hover:bg-[#7bc490]"
-              >
-                  Add User
-              </button>
+    type="submit"
+    disabled={!Object.values(passwordRequirements).every(req => req) || isAddingUser}
+    className={`text-white w-full py-2 rounded-md ${
+        !Object.values(passwordRequirements).every(req => req) || isAddingUser 
+            ? 'bg-gray-400 cursor-not-allowed' 
+            : 'bg-[#88D89F] hover:bg-[#7bc490]'
+    }`}
+>
+    {isAddingUser ? (
+        <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            Adding User...
+        </div>
+    ) : (
+        'Add User'
+    )}
+</button>
+
           </form>
       </div>
   </div>

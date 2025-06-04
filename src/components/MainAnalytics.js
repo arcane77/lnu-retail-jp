@@ -2,10 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./Sidebar";
 import BuildingAnalytics from "./BuildingAnalytics";
-import Analytics from "./Analytics"; 
+import Analytics from "./Analytics";
 import ZoneAnalytics from "./ZoneAnalytics";
-import IAQAnalytics from "./IAQAnalytics"; 
-import { FaWind } from "react-icons/fa";
+import IAQAnalytics from "./IAQAnalytics";
+import { FaWind, FaWater, FaDoorOpen } from "react-icons/fa";
+import WaterLeakHistorical from "./WaterLeakHistorical";
+import MDRHistorical from "./MDRHistorical";
 import axios from "axios";
 
 const MainAnalytics = () => {
@@ -16,6 +18,55 @@ const MainAnalytics = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Date state for the new tabs
+  const [dateRange, setDateRange] = useState({
+    fromDate: new Date().toISOString().split("T")[0],
+    toDate: new Date().toISOString().split("T")[0],
+    month: `${new Date().getFullYear()}-${String(
+      new Date().getMonth() + 1
+    ).padStart(2, "0")}`,
+  });
+  const [reportType, setReportType] = useState("daily");
+
+  // Helper function to get week range (Sunday to Saturday) for a given date
+  const getWeekRange = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 for Sunday, 1 for Monday, etc.
+
+    // Calculate the date of Sunday (start of week)
+    const diff = d.getDate() - day;
+    const sunday = new Date(d.setDate(diff));
+
+    // Calculate the date of Saturday (end of week)
+    const saturday = new Date(sunday);
+    saturday.setDate(sunday.getDate() + 6);
+
+    return {
+      fromDate: sunday.toISOString().split("T")[0],
+      toDate: saturday.toISOString().split("T")[0],
+    };
+  };
+
+  // Helper function to get month range (first and last day of month)
+  const getMonthRange = (yearMonth) => {
+    const [year, month] = yearMonth.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0); // Last day of the month
+
+    return {
+      fromDate: firstDay.toISOString().split("T")[0],
+      toDate: lastDay.toISOString().split("T")[0],
+    };
+  };
+
+  const handleDateChange = (startDate, endDate) => {
+    setDateRange({
+      ...dateRange,
+      fromDate: startDate,
+      toDate: endDate,
+    });
+  };
+
   // Fetch building data on component mount
   useEffect(() => {
     const fetchBuildingData = async () => {
@@ -24,16 +75,16 @@ const MainAnalytics = () => {
         const response = await axios.get(
           "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/devices"
         );
-        
+
         // Find an item with new_building field
-        const buildingInfo = response.data.find(item => item.new_building);
+        const buildingInfo = response.data.find((item) => item.new_building);
         if (buildingInfo && buildingInfo.new_building) {
           setBuildingName(buildingInfo.new_building);
         } else if (response.data.length > 0 && response.data[0].building) {
           // Fallback to building field if new_building doesn't exist
           setBuildingName(response.data[0].building);
         }
-        
+
         setLoading(false);
       } catch (err) {
         console.error("Error fetching building data:", err);
@@ -49,7 +100,7 @@ const MainAnalytics = () => {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
   };
-  
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar
@@ -105,13 +156,15 @@ const MainAnalytics = () => {
                 }`}
                 onClick={() => handleTabChange("building")}
               >
-                <svg 
-                  className={`w-5 h-5 mr-2 ${activeTab === "building" ? "text-blue-600" : "text-gray-600"}`}
-                  viewBox="0 0 24 24" 
-                  fill="none" 
+                <svg
+                  className={`w-5 h-5 mr-2 ${
+                    activeTab === "building" ? "text-blue-600" : "text-gray-600"
+                  }`}
+                  viewBox="0 0 24 24"
+                  fill="none"
                   stroke="currentColor"
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
+                  strokeWidth="2"
+                  strokeLinecap="round"
                   strokeLinejoin="round"
                 >
                   <path d="M3 3v18h18" />
@@ -123,7 +176,7 @@ const MainAnalytics = () => {
                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
                 )}
               </button>
-              
+
               <button
                 className={`px-6 py-4 text-sm md:text-base font-medium transition-all duration-200 ease-in-out flex items-center justify-center relative ${
                   activeTab === "floors"
@@ -132,20 +185,27 @@ const MainAnalytics = () => {
                 }`}
                 onClick={() => handleTabChange("floors")}
               >
-                <svg 
-                  className={`w-4 h-4 mr-2 ${activeTab === "floors" ? "text-blue-600" : "text-gray-600"}`}
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className={`w-4 h-4 mr-2 ${
+                    activeTab === "floors" ? "text-blue-600" : "text-gray-600"
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                  />
                 </svg>
                 Floors
                 {activeTab === "floors" && (
                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
                 )}
               </button>
-              
+
               <button
                 className={`px-6 py-4 text-sm md:text-base font-medium transition-all duration-200 ease-in-out flex items-center justify-center relative ${
                   activeTab === "zones"
@@ -154,13 +214,20 @@ const MainAnalytics = () => {
                 }`}
                 onClick={() => handleTabChange("zones")}
               >
-                <svg 
-                  className={`w-4 h-4 mr-2 ${activeTab === "zones" ? "text-blue-600" : "text-gray-600"}`}
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className={`w-4 h-4 mr-2 ${
+                    activeTab === "zones" ? "text-blue-600" : "text-gray-600"
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                  />
                 </svg>
                 Zones
                 {activeTab === "zones" && (
@@ -175,11 +242,53 @@ const MainAnalytics = () => {
                 }`}
                 onClick={() => handleTabChange("iaq")}
               >
-                <FaWind 
-                  className={`w-4 h-4 mr-2 ${activeTab === "iaq" ? "text-blue-600" : "text-gray-600"}`}
+                <FaWind
+                  className={`w-4 h-4 mr-2 ${
+                    activeTab === "iaq" ? "text-blue-600" : "text-gray-600"
+                  }`}
                 />
                 IAQ
                 {activeTab === "iaq" && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
+                )}
+              </button>
+              <button
+                className={`px-6 py-4 text-sm md:text-base font-medium transition-all duration-200 ease-in-out flex items-center justify-center relative ${
+                  activeTab === "leakages"
+                    ? "text-blue-600"
+                    : "text-gray-700 hover:text-gray-900"
+                }`}
+                onClick={() => handleTabChange("leakages")}
+              >
+                <svg className={`w-4 h-4 mr-2 ${
+                    activeTab === "leakages" ? "text-blue-600" : "text-gray-600"
+                  }`}
+                  width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C12 2 6 10 6 14a6 6 0 0012 0c0-4-6-12-6-12z" /></svg>
+          
+                Leakages
+                {activeTab === "leakages" && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
+                )}
+              </button>
+
+              {/* New Emergency Exits Tab */}
+              <button
+                className={`px-6 py-4 text-sm md:text-base font-medium transition-all duration-200 ease-in-out flex items-center justify-center relative ${
+                  activeTab === "emergency_exits"
+                    ? "text-blue-600"
+                    : "text-gray-700 hover:text-gray-900"
+                }`}
+                onClick={() => handleTabChange("emergency_exits")}
+              >
+                <FaDoorOpen
+                  className={`w-4 h-4 mr-2 ${
+                    activeTab === "emergency_exits"
+                      ? "text-blue-600"
+                      : "text-gray-600"
+                  }`}
+                />
+                Emergency Exits
+                {activeTab === "emergency_exits" && (
                   <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
                 )}
               </button>
@@ -193,13 +302,13 @@ const MainAnalytics = () => {
                 <BuildingAnalytics />
               </div>
             )}
-            
+
             {activeTab === "floors" && (
               <div className="floors-tab">
                 <Analytics />
               </div>
             )}
-            
+
             {activeTab === "zones" && (
               <div className="zones-tab">
                 <ZoneAnalytics />
@@ -208,6 +317,389 @@ const MainAnalytics = () => {
             {activeTab === "iaq" && (
               <div className="iaq-tab">
                 <IAQAnalytics />
+              </div>
+            )}
+            {activeTab === "leakages" && (
+              <div className="leakages-tab">
+                {/* Date Selection Controls */}
+                <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+                  <div className="flex flex-col md:flex-row md:items-end md:justify-between">
+                    <div className="flex flex-col md:flex-row md:items-end">
+                      {/* Report Type */}
+                      <div className="mb-4 md:mb-0">
+                        <label className="text-sm text-gray-600 mb-1 block">
+                          Report Type
+                        </label>
+                        <div className="flex space-x-2">
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "daily"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => {
+                              setReportType("daily");
+                              const today = new Date()
+                                .toISOString()
+                                .split("T")[0];
+                              handleDateChange(today, today);
+                            }}
+                          >
+                            Daily
+                          </button>
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "weekly"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => {
+                              setReportType("weekly");
+                              // Calculate week range
+                              const weekRange = getWeekRange(new Date());
+                              handleDateChange(
+                                weekRange.fromDate,
+                                weekRange.toDate
+                              );
+                            }}
+                          >
+                            Weekly
+                          </button>
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "monthly"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => {
+                              setReportType("monthly");
+                              // Calculate month range
+                              const today = new Date();
+                              const monthStr = `${today.getFullYear()}-${String(
+                                today.getMonth() + 1
+                              ).padStart(2, "0")}`;
+                              const monthRange = getMonthRange(monthStr);
+                              setDateRange({
+                                ...dateRange,
+                                fromDate: monthRange.fromDate,
+                                toDate: monthRange.toDate,
+                                month: monthStr,
+                              });
+                            }}
+                          >
+                            Monthly
+                          </button>
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "custom"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => setReportType("custom")}
+                          >
+                            Custom
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Date Selection Fields */}
+                      <div className="md:ml-16">
+                        {reportType === "custom" ? (
+                          <div className="flex flex-col md:flex-row">
+                            <div className="mb-4 md:mb-0 relative">
+                              <label className="text-sm text-gray-600 mb-1 block">
+                                Start Date
+                              </label>
+                              <input
+                                type="date"
+                                value={dateRange.fromDate}
+                                onChange={(e) =>
+                                  handleDateChange(
+                                    e.target.value,
+                                    dateRange.toDate
+                                  )
+                                }
+                                className="border border-gray-300 rounded-md px-3 py-2"
+                              />
+                            </div>
+                            <div className="mb-4 md:mb-0 md:ml-6 relative">
+                              <label className="text-sm text-gray-600 mb-1 block">
+                                End Date
+                              </label>
+                              <input
+                                type="date"
+                                value={dateRange.toDate}
+                                onChange={(e) =>
+                                  handleDateChange(
+                                    dateRange.fromDate,
+                                    e.target.value
+                                  )
+                                }
+                                className="border border-gray-300 rounded-md px-3 py-2"
+                                min={dateRange.fromDate}
+                              />
+                            </div>
+                          </div>
+                        ) : reportType === "monthly" ? (
+                          <div className="mb-4 md:mb-0">
+                            <label className="text-sm text-gray-600 mb-1 block">
+                              Select Month
+                            </label>
+                            <input
+                              type="month"
+                              value={dateRange.month}
+                              onChange={(e) => {
+                                const monthRange = getMonthRange(
+                                  e.target.value
+                                );
+                                setDateRange({
+                                  ...dateRange,
+                                  fromDate: monthRange.fromDate,
+                                  toDate: monthRange.toDate,
+                                  month: e.target.value,
+                                });
+                              }}
+                              className="border border-gray-300 rounded-md px-3 py-2"
+                            />
+                          </div>
+                        ) : reportType === "weekly" ? (
+                          <div className="mb-4 md:mb-0">
+                            <label className="text-sm text-gray-600 mb-1 block">
+                              Select Week (Showing: {dateRange.fromDate} to{" "}
+                              {dateRange.toDate})
+                            </label>
+                            <input
+                              type="date"
+                              value={dateRange.fromDate}
+                              onChange={(e) => {
+                                // Calculate the week for the selected date
+                                const weekRange = getWeekRange(
+                                  new Date(e.target.value)
+                                );
+                                handleDateChange(
+                                  weekRange.fromDate,
+                                  weekRange.toDate
+                                );
+                              }}
+                              className="border border-gray-300 rounded-md px-3 py-2"
+                            />
+                          </div>
+                        ) : (
+                          <div className="mb-4 md:mb-0">
+                            <label className="text-sm text-gray-600 mb-1 block">
+                              Select Date
+                            </label>
+                            <input
+                              type="date"
+                              value={dateRange.fromDate}
+                              onChange={(e) =>
+                                handleDateChange(e.target.value, e.target.value)
+                              }
+                              className="border border-gray-300 rounded-md px-3 py-2"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Render WaterLeakHistorical component with date range */}
+                <WaterLeakHistorical
+                  dateRange={dateRange}
+                  reportType={reportType}
+                />
+              </div>
+            )}
+
+            {/* New Emergency Exits Tab Content */}
+            {activeTab === "emergency_exits" && (
+              <div className="emergency-exits-tab">
+                {/* Date Selection Controls - Same as Leakages tab */}
+                <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+                  <div className="flex flex-col md:flex-row md:items-end md:justify-between">
+                    <div className="flex flex-col md:flex-row md:items-end">
+                      {/* Report Type */}
+                      <div className="mb-4 md:mb-0">
+                        <label className="text-sm text-gray-600 mb-1 block">
+                          Report Type
+                        </label>
+                        <div className="flex space-x-2">
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "daily"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => {
+                              setReportType("daily");
+                              const today = new Date()
+                                .toISOString()
+                                .split("T")[0];
+                              handleDateChange(today, today);
+                            }}
+                          >
+                            Daily
+                          </button>
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "weekly"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => {
+                              setReportType("weekly");
+                              // Calculate week range
+                              const weekRange = getWeekRange(new Date());
+                              handleDateChange(
+                                weekRange.fromDate,
+                                weekRange.toDate
+                              );
+                            }}
+                          >
+                            Weekly
+                          </button>
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "monthly"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => {
+                              setReportType("monthly");
+                              // Calculate month range
+                              const today = new Date();
+                              const monthStr = `${today.getFullYear()}-${String(
+                                today.getMonth() + 1
+                              ).padStart(2, "0")}`;
+                              const monthRange = getMonthRange(monthStr);
+                              setDateRange({
+                                ...dateRange,
+                                fromDate: monthRange.fromDate,
+                                toDate: monthRange.toDate,
+                                month: monthStr,
+                              });
+                            }}
+                          >
+                            Monthly
+                          </button>
+                          <button
+                            className={`px-4 py-2 rounded-md ${
+                              reportType === "custom"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-200 text-gray-800"
+                            }`}
+                            onClick={() => setReportType("custom")}
+                          >
+                            Custom
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Date Selection Fields */}
+                      <div className="md:ml-16">
+                        {reportType === "custom" ? (
+                          <div className="flex flex-col md:flex-row">
+                            <div className="mb-4 md:mb-0 relative">
+                              <label className="text-sm text-gray-600 mb-1 block">
+                                Start Date
+                              </label>
+                              <input
+                                type="date"
+                                value={dateRange.fromDate}
+                                onChange={(e) =>
+                                  handleDateChange(
+                                    e.target.value,
+                                    dateRange.toDate
+                                  )
+                                }
+                                className="border border-gray-300 rounded-md px-3 py-2"
+                              />
+                            </div>
+                            <div className="mb-4 md:mb-0 md:ml-6 relative">
+                              <label className="text-sm text-gray-600 mb-1 block">
+                                End Date
+                              </label>
+                              <input
+                                type="date"
+                                value={dateRange.toDate}
+                                onChange={(e) =>
+                                  handleDateChange(
+                                    dateRange.fromDate,
+                                    e.target.value
+                                  )
+                                }
+                                className="border border-gray-300 rounded-md px-3 py-2"
+                                min={dateRange.fromDate}
+                              />
+                            </div>
+                          </div>
+                        ) : reportType === "monthly" ? (
+                          <div className="mb-4 md:mb-0">
+                            <label className="text-sm text-gray-600 mb-1 block">
+                              Select Month
+                            </label>
+                            <input
+                              type="month"
+                              value={dateRange.month}
+                              onChange={(e) => {
+                                const monthRange = getMonthRange(
+                                  e.target.value
+                                );
+                                setDateRange({
+                                  ...dateRange,
+                                  fromDate: monthRange.fromDate,
+                                  toDate: monthRange.toDate,
+                                  month: e.target.value,
+                                });
+                              }}
+                              className="border border-gray-300 rounded-md px-3 py-2"
+                            />
+                          </div>
+                        ) : reportType === "weekly" ? (
+                          <div className="mb-4 md:mb-0">
+                            <label className="text-sm text-gray-600 mb-1 block">
+                              Select Week (Showing: {dateRange.fromDate} to{" "}
+                              {dateRange.toDate})
+                            </label>
+                            <input
+                              type="date"
+                              value={dateRange.fromDate}
+                              onChange={(e) => {
+                                // Calculate the week for the selected date
+                                const weekRange = getWeekRange(
+                                  new Date(e.target.value)
+                                );
+                                handleDateChange(
+                                  weekRange.fromDate,
+                                  weekRange.toDate
+                                );
+                              }}
+                              className="border border-gray-300 rounded-md px-3 py-2"
+                            />
+                          </div>
+                        ) : (
+                          <div className="mb-4 md:mb-0">
+                            <label className="text-sm text-gray-600 mb-1 block">
+                              Select Date
+                            </label>
+                            <input
+                              type="date"
+                              value={dateRange.fromDate}
+                              onChange={(e) =>
+                                handleDateChange(e.target.value, e.target.value)
+                              }
+                              className="border border-gray-300 rounded-md px-3 py-2"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Render MDRHistorical component with date range */}
+                <MDRHistorical dateRange={dateRange} reportType={reportType} />
               </div>
             )}
           </div>

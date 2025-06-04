@@ -8,6 +8,7 @@ import {
   BatteryLow,
   ChevronRight,
   Search,
+  Wind, DoorOpen
 } from "lucide-react";
 
 import Sidebar from "./Sidebar";
@@ -624,12 +625,7 @@ const fetchFootfallData = async () => {
                   <div className="bg-gray-100 rounded-full p-3 mr-4">
                     {category === "IAQ Sensors" && (
                       <span className="text-xl">
-                        <img
-                          width="20"
-                          height="20"
-                          src="https://img.icons8.com/fluency-systems-regular/50/air-quality.png"
-                          alt="air-quality"
-                        />
+                        <Wind size={20} />
                       </span>
                     )}
                     {category === "Water Leakage Sensors" && (
@@ -650,11 +646,7 @@ const fetchFootfallData = async () => {
                     )}
                     {category === "MDR Sensors" && (
                       <span className="text-xl">
-                        <img
-                          width="20"
-                          height="20"
-                          src="https://img.icons8.com/ios-filled/50/logout-rounded.png"
-                          alt="logout-rounded"
+                        <DoorOpen size={20}
                         />
                       </span>
                     )}

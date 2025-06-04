@@ -18,6 +18,7 @@ const ZONE_COLORS = {
   'south-zone': '#9F9EDA', // lavender for Zone A
   'central-zone': '#B5768A', // puce for Zone B
   'north-zone': '#B87D4B', // copper for Zone C
+  '1f-calculated': '#FF6B6B', // Red for calculated 1F
   // Add fallback colors for any other zones
   'default': ['#6A5ACD', '#48D1CC', '#DA70D6', '#9370DB', '#6495ED', '#7B68EE']
 };
@@ -26,7 +27,8 @@ const ZONE_COLORS = {
 const ZONE_DISPLAY_NAMES = {
   'south-zone': 'Zone A',
   'central-zone': 'Zone B',
-  'north-zone': 'Zone C'
+  'north-zone': 'Zone C',
+  '1f-calculated': '1F Total'
 };
 
 const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
@@ -108,78 +110,186 @@ const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
 
   // Process and organize the API data
   const processApiData = (data) => {
-    // Filter data for selected floor and exclude 'relocated' and 'main entrance' zones
-    const floorData = data.filter(item => 
-      item.floor_id === selectedFloor && 
-      !normalizeZoneName(item.zone_name).includes('relocated') && 
-      !normalizeZoneName(item.zone_name).includes('main-entrance')
-    );
+    if (selectedFloor === "1F") {
+      // Special handling for 1F - we need data from all floors to calculate
+      const allFloorData = data.filter(item => 
+        !normalizeZoneName(item.zone_name).includes('relocated')
+      );
 
-    if (floorData.length === 0) {
-      setHourlyData([]);
-      setZoneMapping({});
-      setMaxOccupancy(50);
-      return;
-    }
+      if (allFloorData.length === 0) {
+        setHourlyData([]);
+        setZoneMapping({});
+        setMaxOccupancy(50);
+        return;
+      }
 
-    // Create a mapping of normalized zone names to display names
-    const zoneMap = {};
-    floorData.forEach(item => {
-      const normalizedName = normalizeZoneName(item.zone_name);
-      zoneMap[normalizedName] = item.zone_name; // Keep original name for reference
-    });
-    setZoneMapping(zoneMap);
+      // Create a mapping for display
+      setZoneMapping({ '1f-calculated': '1F Total' });
 
-    // Create a map of timestamps to organize data by hour
-    const hourlyMap = new Map();
-    let maxValue = 0; // Track max value for y-axis scaling
-    
-    // Process each zone's data
-    floorData.forEach(item => {
-      const { zone_name, data: zoneData } = item;
-      const normalizedZoneName = normalizeZoneName(zone_name);
+      // Create a map of timestamps to organize data by hour
+      const hourlyMap = new Map();
+      let maxValue = 0;
       
-      // Process each hourly entry
-      zoneData.forEach(entry => {
-        const { timestamp, total_occupancy } = entry;
+      // Group data by floor and hour
+      const floorHourlyData = {
+        'Main-Entrance': new Map(),
+        'MF': new Map(),
+        '2F': new Map(),
+        '3F': new Map()
+      };
+
+      // Process each floor's data
+      allFloorData.forEach(item => {
+        const { floor_id, zone_name, data: zoneData } = item;
         
-        // Skip if timestamp is missing
-        if (!timestamp) return;
+        // Determine which floor this belongs to
+        let floorKey = null;
+        if (zone_name === "Main-Entrance") {
+          floorKey = "Main-Entrance";
+        } else if (floor_id === "MF") {
+          floorKey = "MF";
+        } else if (floor_id === "2F") {
+          floorKey = "2F";
+        } else if (floor_id === "3F") {
+          floorKey = "3F";
+        }
+
+        if (!floorKey || !floorHourlyData[floorKey]) return;
+
+        // Process each hourly entry
+        zoneData.forEach(entry => {
+          const { timestamp, total_occupancy } = entry;
+          
+          if (!timestamp) return;
+          
+          const utcHour = extractUTCHour(timestamp);
+          const hktHour = convertUTCtoHKTHour(utcHour);
+          
+          if (!floorHourlyData[floorKey].has(utcHour)) {
+            floorHourlyData[floorKey].set(utcHour, {
+              utcHour: utcHour,
+              utcFormatted: formatHourForDisplay(utcHour),
+              hktHour: hktHour,
+              hktFormatted: formatHourForDisplay(hktHour),
+              totalOccupancy: 0
+            });
+          }
+          
+          floorHourlyData[floorKey].get(utcHour).totalOccupancy += Math.max(0, total_occupancy);
+        });
+      });
+
+      // Calculate 1F for each hour as Main-Entrance - (MF + 2F + 3F)
+      const allHours = new Set();
+      Object.values(floorHourlyData).forEach(floorMap => {
+        floorMap.forEach((_, hour) => allHours.add(hour));
+      });
+
+      allHours.forEach(hour => {
+        const mainEntrance = floorHourlyData['Main-Entrance'].get(hour)?.totalOccupancy || 0;
+        const mf = floorHourlyData['MF'].get(hour)?.totalOccupancy || 0;
+        const f2 = floorHourlyData['2F'].get(hour)?.totalOccupancy || 0;
+        const f3 = floorHourlyData['3F'].get(hour)?.totalOccupancy || 0;
         
-        // Extract UTC hour from timestamp
-        const utcHour = extractUTCHour(timestamp);
-        // Convert to HKT hour
+        const calculated1F = Math.max(0, mainEntrance - mf - f2 - f3);
+        
+        if (calculated1F > maxValue) {
+          maxValue = calculated1F;
+        }
+
+        const utcHour = hour;
         const hktHour = convertUTCtoHKTHour(utcHour);
         
-        const hourKey = utcHour; // Keep UTC hour as the key for data organization
-        
-        if (!hourlyMap.has(hourKey)) {
-          hourlyMap.set(hourKey, { 
-            utcHour: hourKey,
-            utcFormatted: formatHourForDisplay(utcHour),
-            hktHour: hktHour,
-            hktFormatted: formatHourForDisplay(hktHour)
-          });
-        }
-        
-        // Use total_occupancy but ensure it's not negative
-        const adjustedOccupancy = Math.max(0, total_occupancy);
-        hourlyMap.get(hourKey)[normalizedZoneName] = adjustedOccupancy;
-        
-        // Update max value for y-axis scaling
-        if (adjustedOccupancy > maxValue) {
-          maxValue = adjustedOccupancy;
-        }
+        hourlyMap.set(hour, {
+          utcHour: hour,
+          utcFormatted: formatHourForDisplay(utcHour),
+          hktHour: hktHour,
+          hktFormatted: formatHourForDisplay(hktHour),
+          '1f-calculated': calculated1F
+        });
       });
-    });
-    
-    // Convert map to array and sort by UTC hour
-    const hourlyDataArray = Array.from(hourlyMap.values())
-      .sort((a, b) => a.utcHour - b.utcHour);
-    
-    // Set max occupancy for y-axis with 20% buffer
-    setMaxOccupancy(Math.ceil(maxValue * 1.2));
-    setHourlyData(hourlyDataArray);
+
+      // Convert map to array and sort by UTC hour
+      const hourlyDataArray = Array.from(hourlyMap.values())
+        .sort((a, b) => a.utcHour - b.utcHour);
+      
+      setMaxOccupancy(Math.ceil(maxValue * 1.2));
+      setHourlyData(hourlyDataArray);
+
+    } else {
+      // Original logic for other floors (MF, 2F, 3F)
+      const floorData = data.filter(item => 
+        item.floor_id === selectedFloor && 
+        !normalizeZoneName(item.zone_name).includes('relocated') && 
+        !normalizeZoneName(item.zone_name).includes('main-entrance')
+      );
+
+      if (floorData.length === 0) {
+        setHourlyData([]);
+        setZoneMapping({});
+        setMaxOccupancy(50);
+        return;
+      }
+
+      // Create a mapping of normalized zone names to display names
+      const zoneMap = {};
+      floorData.forEach(item => {
+        const normalizedName = normalizeZoneName(item.zone_name);
+        zoneMap[normalizedName] = item.zone_name; // Keep original name for reference
+      });
+      setZoneMapping(zoneMap);
+
+      // Create a map of timestamps to organize data by hour
+      const hourlyMap = new Map();
+      let maxValue = 0; // Track max value for y-axis scaling
+      
+      // Process each zone's data
+      floorData.forEach(item => {
+        const { zone_name, data: zoneData } = item;
+        const normalizedZoneName = normalizeZoneName(zone_name);
+        
+        // Process each hourly entry
+        zoneData.forEach(entry => {
+          const { timestamp, total_occupancy } = entry;
+          
+          // Skip if timestamp is missing
+          if (!timestamp) return;
+          
+          // Extract UTC hour from timestamp
+          const utcHour = extractUTCHour(timestamp);
+          // Convert to HKT hour
+          const hktHour = convertUTCtoHKTHour(utcHour);
+          
+          const hourKey = utcHour; // Keep UTC hour as the key for data organization
+          
+          if (!hourlyMap.has(hourKey)) {
+            hourlyMap.set(hourKey, { 
+              utcHour: hourKey,
+              utcFormatted: formatHourForDisplay(utcHour),
+              hktHour: hktHour,
+              hktFormatted: formatHourForDisplay(hktHour)
+            });
+          }
+          
+          // Use total_occupancy but ensure it's not negative
+          const adjustedOccupancy = Math.max(0, total_occupancy);
+          hourlyMap.get(hourKey)[normalizedZoneName] = adjustedOccupancy;
+          
+          // Update max value for y-axis scaling
+          if (adjustedOccupancy > maxValue) {
+            maxValue = adjustedOccupancy;
+          }
+        });
+      });
+      
+      // Convert map to array and sort by UTC hour
+      const hourlyDataArray = Array.from(hourlyMap.values())
+        .sort((a, b) => a.utcHour - b.utcHour);
+      
+      // Set max occupancy for y-axis with 20% buffer
+      setMaxOccupancy(Math.ceil(maxValue * 1.2));
+      setHourlyData(hourlyDataArray);
+    }
   };
 
   // Custom tooltip to show values
@@ -198,8 +308,7 @@ const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
               <p key={index} style={{ color: entry.color }}>
                 <span className="font-medium">{displayName}: </span>
                 {entry.value !== undefined ? Math.round(entry.value) : 'N/A'} 
-                {/* people               */}
-                </p>
+              </p>
             );
           })}
         </div>
@@ -258,37 +367,54 @@ const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
                 formatter={(value) => getZoneDisplayName(value)}
               />
               
-             {/* Render in specific order: A, B, C */}
-<Line
-  type="monotone"
-  dataKey="south-zone"
-  name="south-zone"
-  stroke={getZoneColor('south-zone', 0)}
-  strokeWidth={2}
-  connectNulls={true}
-  dot={false}
-  activeDot={{ r: 6 }}
-/>
-<Line
-  type="monotone"
-  dataKey="central-zone"
-  name="central-zone"
-  stroke={getZoneColor('central-zone', 1)}
-  strokeWidth={2}
-  connectNulls={true}
-  dot={false}
-  activeDot={{ r: 6 }}
-/>
-<Line
-  type="monotone"
-  dataKey="north-zone"
-  name="north-zone"
-  stroke={getZoneColor('north-zone', 2)}
-  strokeWidth={2}
-  connectNulls={true}
-  dot={false}
-  activeDot={{ r: 6 }}
-/>
+              {/* Render lines based on floor selection */}
+              {selectedFloor === "1F" ? (
+                // For 1F, show the calculated total
+                <Line
+                  type="monotone"
+                  dataKey="1f-calculated"
+                  name="1f-calculated"
+                  stroke={getZoneColor('1f-calculated', 0)}
+                  strokeWidth={3}
+                  connectNulls={true}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                />
+              ) : (
+                // For other floors, show individual zones
+                <>
+                  <Line
+                    type="monotone"
+                    dataKey="south-zone"
+                    name="south-zone"
+                    stroke={getZoneColor('south-zone', 0)}
+                    strokeWidth={2}
+                    connectNulls={true}
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="central-zone"
+                    name="central-zone"
+                    stroke={getZoneColor('central-zone', 1)}
+                    strokeWidth={2}
+                    connectNulls={true}
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="north-zone"
+                    name="north-zone"
+                    stroke={getZoneColor('north-zone', 2)}
+                    strokeWidth={2}
+                    connectNulls={true}
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                  />
+                </>
+              )}
               
               {/* Reference line at max capacity */}
               <ReferenceLine y={50} stroke="#777" strokeDasharray="3 3" label="Max Capacity (50)" />

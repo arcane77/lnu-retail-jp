@@ -30,6 +30,15 @@ body {
   box-shadow: 0 8px 10px 8px rgba(10, 255, 88, 0.1), 0 2px 4px rgba(0, 255, 60, 0.1);
 }
 
+.custom-shadow-green1 {
+  box-shadow: 0 2px 4px 2px rgba(10, 255, 88, 0.189), 0 2px 4px rgba(0, 255, 60, 0.14);
+}
+
+.custom-shadow-red1 {
+  box-shadow: 0 2px 4px 2px rgba(255, 10, 10, 0.168), 0 2px 4px rgba(255, 0, 0, 0.175);
+}
+
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;

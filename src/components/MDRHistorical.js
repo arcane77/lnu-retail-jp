@@ -14,10 +14,12 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
   const indexOfLastRow = currentPage * rowsPerPage;
   const indexOfFirstRow = indexOfLastRow - rowsPerPage;
 
-  const filteredData =
-    deviceFilter === "all"
-      ? tableData
-      : tableData.filter((item) => item.deviceName.includes(deviceFilter));
+  // Filter out WS301-915M-01 device and apply device filter
+  const filteredData = tableData
+    .filter((item) => item.deviceName !== "WS301-915M-01") // Exclude WS301-915M-01
+    .filter((item) => 
+      deviceFilter === "all" ? true : item.deviceName.includes(deviceFilter)
+    );
 
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
   const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
@@ -104,7 +106,7 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
 
   return (
     <div>
-      <div className="mb-10 rounded-xl border custom-shadow  border-gray-300 overflow-hidden bg-white w-11/12 mx-auto">
+      <div className="mb-10 rounded-xl border custom-shadow  border-gray-300 overflow-hidden bg-white w-[98%] mt-10 mx-auto">
         {isLoading ? (
           <div className="text-center py-10">Loading MDR data...</div>
         ) : tableData.length > 0 ? (
@@ -153,7 +155,7 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
           </table>
         ) : (
           <div className="text-center py-10">
-            No doors are opened for the selected date range
+            No doors opened for the selected date
           </div>
         )}
 
@@ -171,7 +173,7 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
                   onClick={() => setCurrentPage(idx + 1)}
                   className={`w-8 h-8 flex items-center justify-center rounded-md border ${
                     currentPage === idx + 1
-                      ? "bg-[#C0444E] text-white"
+                      ? "bg-blue-600 text-white"
                       : "bg-white text-gray-700"
                   }`}
                 >

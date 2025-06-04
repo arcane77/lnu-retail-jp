@@ -93,13 +93,14 @@ const AvgFloorDaily = ({ selectedFloor, selectedDate, reportType }) => {
 
   // Process hourly data for daily reports
   const processHourlyData = (data) => {
-    // Filter for the selected floor, exclude Main-Entrance and Relocated zones
-    const floorItems = data.filter(
-      (item) => 
-        item.floor_id === selectedFloor && 
-        item.zone_name !== "Main-Entrance" && 
-        item.zone_name.toLowerCase() !== "relocated"
-    );
+    // Filter data based on floor selection
+    const floorItems = selectedFloor === "1F"
+      ? data.filter((item) => item.zone_name.toLowerCase() !== "relocated")
+      : data.filter((item) => 
+          item.floor_id === selectedFloor && 
+          item.zone_name !== "Main-Entrance" && 
+          item.zone_name.toLowerCase() !== "relocated"
+        );
 
     if (floorItems.length === 0) {
       setAvgData({
@@ -109,48 +110,106 @@ const AvgFloorDaily = ({ selectedFloor, selectedDate, reportType }) => {
       return;
     }
 
-    let totalPercentage = 0;
-    let dataPointCount = 0;
-    let maxCapacity = 0;
+    if (selectedFloor === "1F") {
+      // Special handling for 1F calculation
+      const floorTotals = {
+        "Main-Entrance": { totalPercentage: 0, dataPoints: 0 },
+        "MF": { totalPercentage: 0, dataPoints: 0 },
+        "2F": { totalPercentage: 0, dataPoints: 0 },
+        "3F": { totalPercentage: 0, dataPoints: 0 }
+      };
+      
+      let maxCapacity = 0;
 
-    // Process each zone data point
-    floorItems.forEach((item) => {
-      const { data: zoneData } = item;
+      // Group data by floor
+      floorItems.forEach((item) => {
+        const { data: zoneData, zone_name } = item;
+        
+        // Determine which floor this zone belongs to
+        let floorKey = null;
+        if (zone_name === "Main-Entrance") {
+          floorKey = "Main-Entrance";
+        } else if (item.floor_id === "MF") {
+          floorKey = "MF";
+        } else if (item.floor_id === "2F") {
+          floorKey = "2F";
+        } else if (item.floor_id === "3F") {
+          floorKey = "3F";
+        }
+        
+        if (floorKey && floorTotals[floorKey]) {
+          // Set max capacity if available
+          if (zoneData.length > 0 && zoneData[0].max_capacity) {
+            maxCapacity += zoneData[0].max_capacity;
+          }
 
-      // Set max capacity if available
-      if (zoneData.length > 0 && zoneData[0].max_capacity) {
-        maxCapacity += zoneData[0].max_capacity;
-      }
-
-      zoneData.forEach((entry) => {
-        const { occupancy_percentage } = entry;
-
-        // Add to total percentage for averaging later
-        totalPercentage += occupancy_percentage;
-        dataPointCount++;
+          zoneData.forEach((entry) => {
+            const { occupancy_percentage } = entry;
+            floorTotals[floorKey].totalPercentage += occupancy_percentage;
+            floorTotals[floorKey].dataPoints++;
+          });
+        }
       });
-    });
 
-    // Calculate average occupancy percentage
-    const avgOccupancyPercentage =
-      dataPointCount > 0 ? totalPercentage / dataPointCount : 0;
+      // Calculate average for each floor
+      const floorAverages = {};
+      Object.keys(floorTotals).forEach(floor => {
+        const data = floorTotals[floor];
+        floorAverages[floor] = data.dataPoints > 0 ? data.totalPercentage / data.dataPoints : 0;
+      });
 
-    // Set data
-    setAvgData({
-      avgOccupancyPercentage: avgOccupancyPercentage,
-      maxCapacity: maxCapacity || 50, // Default to 50 if no max capacity
-    });
+      // Calculate 1F = Main-Entrance - (MF + 2F + 3F)
+      const calculated1F = Math.max(0, 
+        floorAverages["Main-Entrance"] - 
+        floorAverages["MF"] - 
+        floorAverages["2F"] - 
+        floorAverages["3F"]
+      );
+
+      setAvgData({
+        avgOccupancyPercentage: calculated1F,
+        maxCapacity: maxCapacity || 50,
+      });
+    } else {
+      // Original logic for other floors (MF, 2F, 3F)
+      let totalPercentage = 0;
+      let dataPointCount = 0;
+      let maxCapacity = 0;
+
+      floorItems.forEach((item) => {
+        const { data: zoneData } = item;
+
+        if (zoneData.length > 0 && zoneData[0].max_capacity) {
+          maxCapacity += zoneData[0].max_capacity;
+        }
+
+        zoneData.forEach((entry) => {
+          const { occupancy_percentage } = entry;
+          totalPercentage += occupancy_percentage;
+          dataPointCount++;
+        });
+      });
+
+      const avgOccupancyPercentage =
+        dataPointCount > 0 ? totalPercentage / dataPointCount : 0;
+
+      setAvgData({
+        avgOccupancyPercentage: avgOccupancyPercentage,
+        maxCapacity: maxCapacity || 50,
+      });
+    }
   };
 
   // Process historical data for weekly/monthly/custom reports
   const processHistoricalData = (data) => {
-    // Filter for the selected floor, exclude Main-Entrance and Relocated zones
-    const floorItems = data.filter(
-      (item) => 
-        item.floor_id === selectedFloor && 
-        item.zone_name !== "Main-Entrance" && 
-        item.zone_name.toLowerCase() !== "relocated"
-    );
+    // Filter data based on floor selection
+    const floorItems = selectedFloor === "1F"
+      ? data.filter((item) => item.zone_name.toLowerCase() !== "relocated")
+      : data.filter((item) => 
+          item.floor_id === selectedFloor && 
+          item.zone_name !== "Main-Entrance" && 
+          item.zone_name.toLowerCase() !== "relocated"
+        );
 
     if (floorItems.length === 0) {
       setAvgData({
@@ -160,37 +219,94 @@ const AvgFloorDaily = ({ selectedFloor, selectedDate, reportType }) => {
       return;
     }
 
-    let totalPercentage = 0;
-    let dataPointCount = 0;
-    let maxCapacity = 0;
+    if (selectedFloor === "1F") {
+      // Special handling for 1F calculation
+      const floorTotals = {
+        "Main-Entrance": { totalPercentage: 0, dataPoints: 0 },
+        "MF": { totalPercentage: 0, dataPoints: 0 },
+        "2F": { totalPercentage: 0, dataPoints: 0 },
+        "3F": { totalPercentage: 0, dataPoints: 0 }
+      };
+      
+      let maxCapacity = 0;
 
-    // Process each zone data point
-    floorItems.forEach((item) => {
-      const { data: zoneData } = item;
+      // Group data by floor
+      floorItems.forEach((item) => {
+        const { data: zoneData, zone_name } = item;
+        
+        // Determine which floor this zone belongs to
+        let floorKey = null;
+        if (zone_name === "Main-Entrance") {
+          floorKey = "Main-Entrance";
+        } else if (item.floor_id === "MF") {
+          floorKey = "MF";
+        } else if (item.floor_id === "2F") {
+          floorKey = "2F";
+        } else if (item.floor_id === "3F") {
+          floorKey = "3F";
+        }
+        
+        if (floorKey && floorTotals[floorKey]) {
+          // Set max capacity if available
+          if (zoneData.length > 0 && zoneData[0].max_capacity) {
+            maxCapacity += zoneData[0].max_capacity;
+          }
 
-      // Set max capacity if available
-      if (zoneData.length > 0 && zoneData[0].max_capacity) {
-        maxCapacity += zoneData[0].max_capacity;
-      }
-
-      zoneData.forEach((entry) => {
-        const { occupancy_percentage } = entry;
-
-        // Add to total percentage for averaging later
-        totalPercentage += occupancy_percentage;
-        dataPointCount++;
+          zoneData.forEach((entry) => {
+            const { occupancy_percentage } = entry;
+            floorTotals[floorKey].totalPercentage += occupancy_percentage;
+            floorTotals[floorKey].dataPoints++;
+          });
+        }
       });
-    });
 
-    // Calculate average occupancy percentage
-    const avgOccupancyPercentage =
-      dataPointCount > 0 ? totalPercentage / dataPointCount : 0;
+      // Calculate average for each floor
+      const floorAverages = {};
+      Object.keys(floorTotals).forEach(floor => {
+        const data = floorTotals[floor];
+        floorAverages[floor] = data.dataPoints > 0 ? data.totalPercentage / data.dataPoints : 0;
+      });
 
-    // Set data
-    setAvgData({
-      avgOccupancyPercentage: avgOccupancyPercentage,
-      maxCapacity: maxCapacity || 50, // Default to 50 if no max capacity
-    });
+      // Calculate 1F = Main-Entrance - (MF + 2F + 3F)
+      const calculated1F = Math.max(0, 
+        floorAverages["Main-Entrance"] - 
+        floorAverages["MF"] - 
+        floorAverages["2F"] - 
+        floorAverages["3F"]
+      );
+
+      setAvgData({
+        avgOccupancyPercentage: calculated1F,
+        maxCapacity: maxCapacity || 50,
+      });
+    } else {
+      // Original logic for other floors (MF, 2F, 3F)
+      let totalPercentage = 0;
+      let dataPointCount = 0;
+      let maxCapacity = 0;
+
+      floorItems.forEach((item) => {
+        const { data: zoneData } = item;
+
+        if (zoneData.length > 0 && zoneData[0].max_capacity) {
+          maxCapacity += zoneData[0].max_capacity;
+        }
+
+        zoneData.forEach((entry) => {
+          const { occupancy_percentage } = entry;
+          totalPercentage += occupancy_percentage;
+          dataPointCount++;
+        });
+      });
+
+      const avgOccupancyPercentage =
+        dataPointCount > 0 ? totalPercentage / dataPointCount : 0;
+
+      setAvgData({
+        avgOccupancyPercentage: avgOccupancyPercentage,
+        maxCapacity: maxCapacity || 50,
+      });
+    }
   };
 
   // Fetch data when component mounts and when selectedDate, selectedFloor, or reportType changes

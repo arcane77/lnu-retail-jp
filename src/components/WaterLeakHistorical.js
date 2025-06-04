@@ -113,7 +113,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
 
   return (
     <div>
-      <div className="mb-10 rounded-xl border custom-shadow  border-gray-300overflow-hidden bg-white w-11/12 mx-auto">
+      <div className="mb-10 rounded-xl border custom-shadow  border-gray-300overflow-hidden bg-white w-[98%] mt-10 mx-auto">
         {isLoading ? (
           <div className="text-center py-10">Loading Water Leak data...</div>
         ) : tableData.length > 0 ? (
@@ -167,7 +167,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
                     onClick={() => setCurrentPage(idx + 1)}
                     className={`w-8 h-8 flex items-center justify-center rounded-md border ${
                       currentPage === idx + 1
-                        ? "bg-[#C0444E] text-white"
+                        ? "bg-blue-600 text-white"
                         : "bg-white text-gray-700"
                     }`}
                   >
@@ -179,7 +179,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
           </>
         ) : (
           <div className="text-center py-10">
-            No water leaks on selected date
+            No water leaks detected on selected date
           </div>
         )}
       </div>

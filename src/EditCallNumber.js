@@ -1,0 +1,651 @@
+import React, { useState, useEffect } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
+import Sidebar from "./components/Sidebar";
+import { Trash2 } from "lucide-react";
+
+const EditCallNumber = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { logout } = useAuth0();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [editingRow, setEditingRow] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  // Form data state
+  const [formData, setFormData] = useState({
+    book_shelf_number: "",
+    location_code: "",
+    start_character: "",
+    start_number: "",
+    stop_character: "",
+    stop_number: "",
+    prefix: "",
+  });
+
+  // Data state
+  const [callNumberData, setCallNumberData] = useState([]);
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchCallNumbers();
+  }, []);
+
+  const fetchCallNumbers = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        "https://lnudevices-dot-optimus-hk.df.r.appspot.com/shelf-number",
+        {
+          mode: "cors",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      if (!response.ok) throw new Error("Failed to fetch data");
+      const data = await response.json();
+      setCallNumberData(data);
+    } catch (err) {
+      setError(`Failed to fetch data: ${err.message}`);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (row) => {
+    setEditingRow(row.id);
+    setFormData({
+      book_shelf_number: row.book_shelf_number || "",
+      location_code: row.location_code || "",
+      start_character: row.start_character || "",
+      start_number: row.start_number?.toString() || "",
+      stop_character: row.stop_character || "",
+      stop_number: row.stop_number?.toString() || "",
+      prefix: row.prefix || "",
+    });
+  };
+
+  const handleAdd = () => {
+    setShowAddForm(true);
+    setFormData({
+      book_shelf_number: "",
+      location_code: "",
+      start_character: "",
+      start_number: "",
+      stop_character: "",
+      stop_number: "",
+      prefix: "",
+    });
+  };
+
+  const handleCancel = () => {
+    setEditingRow(null);
+    setShowAddForm(false);
+    setFormData({
+      book_shelf_number: "",
+      location_code: "",
+      start_character: "",
+      start_number: "",
+      stop_character: "",
+      stop_number: "",
+      prefix: "",
+    });
+  };
+
+  const handleInputChange = (field, value) => {
+    // Validate character fields to only allow letters
+    if (field === "start_character" || field === "stop_character") {
+      if (!/^[A-Za-z]*$/.test(value)) return;
+    }
+
+    // Validate number fields to only allow numbers
+    if (field === "start_number" || field === "stop_number") {
+      if (!/^[0-9]*$/.test(value)) return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleSave = async () => {
+    // Validation
+    if (!formData.book_shelf_number.trim()) {
+      setError("Book shelf number is required");
+      return;
+    }
+    if (!formData.location_code.trim()) {
+      setError("Location code is required");
+      return;
+    }
+    if (!formData.start_character.trim()) {
+      setError("Start character is required");
+      return;
+    }
+    if (!formData.start_number.trim()) {
+      setError("Start number is required");
+      return;
+    }
+    if (!formData.stop_character.trim()) {
+      setError("Stop character is required");
+      return;
+    }
+    if (!formData.stop_number.trim()) {
+      setError("Stop number is required");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let url =
+        "https://lnudevices-dot-optimus-hk.df.r.appspot.com/shelf-number";
+      let method = "POST";
+
+      // Create body with the format the API expects (combined start/end fields)
+      const body = {
+        book_shelf_number: formData.book_shelf_number.trim(),
+        location_code: formData.location_code.trim(),
+        start: formData.start_character.trim() + formData.start_number.trim(),
+        end: formData.stop_character.trim() + formData.stop_number.trim(),
+        prefix: formData.prefix.trim() || null,
+      };
+
+      // For editing, include ID in body (as per Swagger spec)
+      if (editingRow) {
+        method = "PUT";
+        body.id = editingRow; // ID in body for PUT requests
+        url = `https://lnudevices-dot-optimus-hk.df.r.appspot.com/shelf-number`;
+      }
+
+      console.log("API Request Details:", {
+        method,
+        url,
+        body,
+        editingRow,
+        formData,
+      });
+
+      const response = await fetch(url, {
+        method,
+        mode: "cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      console.log("Response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Error:", errorText);
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
+      }
+
+      setSuccessMessage(
+        editingRow ? "Updated successfully" : "Created successfully"
+      );
+      setTimeout(() => setSuccessMessage(""), 3000);
+
+      setEditingRow(null);
+      setShowAddForm(false);
+      setFormData({
+        book_shelf_number: "",
+        location_code: "",
+        start_character: "",
+        start_number: "",
+        stop_character: "",
+        stop_number: "",
+        prefix: "",
+      });
+
+      await fetchCallNumbers();
+    } catch (err) {
+      console.error("Save error:", err);
+      setError(`Failed to save: ${err.message}`);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this record?")) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `https://lnudevices-dot-optimus-hk.df.r.appspot.com/shelf-number?id=${id}`,
+        {
+          method: "DELETE",
+          mode: "cors",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to delete");
+
+      setSuccessMessage("Deleted successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      await fetchCallNumbers();
+    } catch (err) {
+      setError(`Failed to delete: ${err.message}`);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <Sidebar
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        logout={logout}
+      />
+
+      {/* Header */}
+      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
+        <div className="flex items-center h-full">
+          <button
+            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
+              isSidebarOpen ? "hidden" : ""
+            }`}
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+          </button>
+        </div>
+        <img
+          src="/library-logo-final_2024.png"
+          alt="LNU Logo"
+          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
+        />
+      </header>
+
+      {/* Main Content */}
+      <main className="pt-28 xl:pt-32 px-4 md:px-8 pb-10">
+        <div className="max-w-9xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl md:text-3xl font-semibold text-gray-800">
+              Edit Call Numbers
+            </h1>
+            <button
+              onClick={handleAdd}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-sm font-medium"
+            >
+              Add Call Number
+            </button>
+          </div>
+
+          {/* Notification Messages */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border-l-4 border-red-500 text-red-700 rounded">
+              <p>{error}</p>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-100 border-l-4 border-green-500 text-green-700 rounded">
+              <p>{successMessage}</p>
+            </div>
+          )}
+
+          {/* Add Form */}
+          {showAddForm && (
+            <div className="bg-white border border-[#E2E2E4] custom-shadow rounded-lg p-6 mb-6">
+              <h2 className="text-lg font-medium text-gray-800 mb-4">
+                Add New Call Number
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Book Shelf Number
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.book_shelf_number}
+                    onChange={(e) =>
+                      handleInputChange("book_shelf_number", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Location Code
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.location_code}
+                    onChange={(e) =>
+                      handleInputChange("location_code", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Character
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.start_character}
+                    onChange={(e) =>
+                      handleInputChange("start_character", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. DS"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start Number
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.start_number}
+                    onChange={(e) =>
+                      handleInputChange("start_number", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. 727"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stop Character
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.stop_character}
+                    onChange={(e) =>
+                      handleInputChange("stop_character", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. DS"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Stop Number
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.stop_number}
+                    onChange={(e) =>
+                      handleInputChange("stop_number", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. 815"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Prefix
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.prefix}
+                    onChange={(e) =>
+                      handleInputChange("prefix", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. DVD"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2 mt-4">
+                <button
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md shadow-sm font-medium disabled:opacity-50"
+                >
+                  {loading ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  className="border border-gray-500 bg-transparent hover:bg-gray-600 text-grey-500 px-4 py-2 rounded-md shadow-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading && !showAddForm && !editingRow ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : (
+            <div className="bg-white border border-[#E2E2E4] custom-shadow rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                      >
+                        Book Shelf Number
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                      >
+                        Location Code
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                      >
+                        Start Character
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                      >
+                        Start Number
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                      >
+                        Stop Character
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                      >
+                        Stop Number
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                      >
+                        Prefix
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-right text-sm font-medium text-gray-600"
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {callNumberData.map((row) => (
+                      <tr key={row.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.book_shelf_number}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  "book_shelf_number",
+                                  e.target.value
+                                )
+                              }
+                              className="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.book_shelf_number
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.location_code}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  "location_code",
+                                  e.target.value
+                                )
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.location_code
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.start_character}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  "start_character",
+                                  e.target.value
+                                )
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.start_character || ""
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.start_number}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  "start_number",
+                                  e.target.value
+                                )
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.start_number || ""
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.stop_character}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  "stop_character",
+                                  e.target.value
+                                )
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.stop_character || ""
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.stop_number}
+                              onChange={(e) =>
+                                handleInputChange("stop_number", e.target.value)
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.stop_number || ""
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.prefix}
+                              onChange={(e) =>
+                                handleInputChange("prefix", e.target.value)
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.prefix || "-"
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          {editingRow === row.id ? (
+                            <div className="flex justify-end space-x-2">
+                              <button
+                                onClick={handleSave}
+                                disabled={loading}
+                                className="text-green-600 hover:text-green-900 px-3 py-1 border border-green-600 rounded-md hover:bg-green-50 disabled:opacity-50"
+                              >
+                                {loading ? "Saving..." : "Save"}
+                              </button>
+                              <button
+                                onClick={handleCancel}
+                                className="text-gray-500 hover:text-gray-700 px-3 py-1 border border-gray-500 rounded-md hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex justify-end space-x-2">
+                              <button
+                                onClick={() => handleEdit(row)}
+                                className="text-blue-600 hover:text-blue-900 px-3 py-1 border border-blue-600 rounded-md hover:bg-blue-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(row.id)}
+                                className="text-red-600 hover:text-red-900 p-2 border border-red-600 rounded-md hover:bg-red-50"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {callNumberData.length === 0 && !loading && (
+                <div className="text-center py-8 text-gray-500">
+                  No call numbers found. Click "Add Call Number" to create one.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default EditCallNumber;

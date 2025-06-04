@@ -15,6 +15,7 @@ import SmplrspaceViewer from "./SmplrspaceViewer";
 import MainAnalytics from "./components/MainAnalytics";
 import EditSpaces from "./components/EditSpaces";
 import Historical from "./components/Historical"
+import EditCallNumber from "./EditCallNumber";
 
 // Authentication check function
 const isAuthenticated = () => {
@@ -79,6 +80,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <SpaceViewer />
+            </ProtectedRoute>
+          }
+        />
+
+<Route
+          path="/callnumber"
+          element={
+            <ProtectedRoute>
+              <EditCallNumber />
             </ProtectedRoute>
           }
         />
