@@ -75,7 +75,7 @@ const Leakage = () => {
         setAckLoading(true);
       }
       const response = await fetch(
-        "https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/ack-leaks"
+        "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/ack-leaks"
       );
 
       if (!response.ok) {
@@ -208,7 +208,7 @@ const Leakage = () => {
       }
 
       const response = await fetch(
-        "https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/leaks"
+        "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/leaks"
       );
 
       if (!response.ok) {
@@ -220,16 +220,16 @@ const Leakage = () => {
       const data = await response.json();
 
       const mappedLeaks = Array.isArray(data)
-        ? data.map((leakArray) => {
-            return {
-              id: leakArray[0],
-              sensorId: leakArray[1] || "Unknown",
-              location: deviceLocations[leakArray[1]] || "Unknown",
-              status: leakArray[5] || "Unknown",
-              timestamp: leakArray[7] || new Date().toLocaleString(),
-            };
-          })
-        : [];
+  ? data.map((leak) => {
+      return {
+        id: leak.id,
+        sensorId: leak.sensor || "Unknown",
+        location: deviceLocations[leak.sensor] || "Unknown",
+        status: leak.leakage_status || "Unknown",
+        timestamp: leak.leak_time || new Date().toISOString(),
+      };
+    })
+  : [];
 
       setLeakData(mappedLeaks);
       setLeakLoading(false);
@@ -296,42 +296,81 @@ const Leakage = () => {
     }
   };
 
-
-
   useEffect(() => {
     fetchLeakData();
     fetchAckData();
-  
+
     const leakInterval = setInterval(fetchLeakData, 300000);
     const ackInterval = setInterval(fetchAckData, 300000);
-  
+
     return () => {
       clearInterval(leakInterval);
       clearInterval(ackInterval);
     };
   }, [deviceLocations]);
-  
+
   // Separate useEffect for sensor data that depends on ackData
   useEffect(() => {
     fetchSensorData();
     const sensorInterval = setInterval(fetchSensorData, 30000);
-    
+
     return () => {
       clearInterval(sensorInterval);
     };
   }, [deviceLocations, ackData]);
 
   const getPast7DaysAlerts = () => {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    return sensorData.filter(sensor => {
-      if (sensor.lastAlert === "N/A") return false;
-      
-      const alertDate = new Date(sensor.lastAlert);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  // Get past 7 days alerts from acknowledged leaks (ackData)
+  const ackAlerts = ackData
+    .filter((ack) => {
+      if (!ack.leak_time) return false;
+      const alertDate = new Date(ack.leak_time);
       return alertDate >= sevenDaysAgo && alertDate <= new Date();
-    });
-  };
+    })
+    .map((ack) => ({
+      id: ack.sensor,
+      sensorId: ack.sensor,
+      location: deviceLocations[ack.sensor] || "Unknown",
+      lastAlert: ack.leak_time,
+      type: "acknowledged"
+    }));
+
+  // Get current active leaks that are within past 7 days (leakData)
+  const currentAlerts = leakData
+    .filter((leak) => {
+      if (!leak.timestamp) return false;
+      const alertDate = new Date(leak.timestamp);
+      return alertDate >= sevenDaysAgo && alertDate <= new Date();
+    })
+    .map((leak) => ({
+      id: leak.sensorId,
+      sensorId: leak.sensorId,
+      location: leak.location,
+      lastAlert: leak.timestamp,
+      type: "current"
+    }));
+
+  // Combine both arrays and remove duplicates (keep the most recent per sensor)
+  const allAlerts = [...ackAlerts, ...currentAlerts];
+  const uniqueAlerts = allAlerts.reduce((acc, current) => {
+    const existing = acc.find(item => item.sensorId === current.sensorId);
+    if (!existing) {
+      acc.push(current);
+    } else {
+      // Keep the more recent alert
+      if (new Date(current.lastAlert) > new Date(existing.lastAlert)) {
+        const index = acc.indexOf(existing);
+        acc[index] = current;
+      }
+    }
+    return acc;
+  }, []);
+
+  return uniqueAlerts;
+};
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -362,31 +401,31 @@ const Leakage = () => {
   return (
     <div>
       <Sidebar
-              isSidebarOpen={isSidebarOpen}
-              setIsSidebarOpen={setIsSidebarOpen}
-              logout={logout}
-            />
-      
-            {/* Header */}
-            <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-              <div className="flex items-center h-full">
-                <button
-                  className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-                    isSidebarOpen ? "hidden" : ""
-                  }`}
-                  onClick={() => setIsSidebarOpen(true)}
-                >
-                  <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-                  <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-                  <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-                </button>
-              </div>
-              <img
-                src="/library-logo-final_2024.png"
-                alt="LNU Logo"
-                className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-              />
-            </header>
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        logout={logout}
+      />
+
+      {/* Header */}
+      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
+        <div className="flex items-center h-full">
+          <button
+            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
+              isSidebarOpen ? "hidden" : ""
+            }`}
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+          </button>
+        </div>
+        <img
+          src="/library-logo-final_2024.png"
+          alt="LNU Logo"
+          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
+        />
+      </header>
 
       <div className="min-h-screen mt-12 sm:mt-12 lg:mt-24 bg-gray-100 p-8">
         <h1 className="md:text-2xl text-xl font-semibold text-gray-800 mb-6">
@@ -434,92 +473,116 @@ const Leakage = () => {
               </p>
 
               {leakLoading ? (
-  <div className="mt-6 text-center">
-    <p>Loading leak data...</p>
-  </div>
-) : leakError ? (
-  <div className="mt-6 text-center text-red-500">
-    <p>Error loading leak data: {leakError}</p>
-  </div>
-) : (
-  <>
-    {/* Current Leakages */}
-    {leakData.length > 0 && (
-      <div className="mt-6 w-full max-w-[380px] mb-6 h-40 overflow-y-auto border border-gray-300 rounded-md p-2">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-200">
-              <th className="px-2 py-2">Sensor</th>
-              <th className="px-2 py-2">Location</th>
-              <th className="px-2 py-2">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leakData.map((leak) => (
-              <tr key={leak.id} className="border-b border-gray-300">
-                <td className="px-2 py-1 text-center">
-                  {leak.sensorId}
-                </td>
-                <td className="px-2 py-1 text-center">
-                  {leak.location}
-                </td>
-                <td className="px-2 py-1 text-center">
-                  <button
-                    onClick={() => handleAcknowledge(leak.id)}
-                    className="bg-[#88D89F] hover:bg-green-400 text-white font-bold py-1 px-2 rounded text-xs"
-                  >
-                    ACK
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )}
+                <div className="mt-6 text-center">
+                  <p>Loading leak data...</p>
+                </div>
+              ) : leakError ? (
+                <div className="mt-6 text-center text-red-500">
+                  <p>Error loading leak data: {leakError}</p>
+                </div>
+              ) : (
+                <>
+                  {/* Current Leakages */}
+                  {leakData.length > 0 && (
+                    <div className="mt-6 w-full max-w-[380px] mb-6 h-40 overflow-y-auto border border-gray-300 rounded-md p-2">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-200">
+                            <th className="px-2 py-2">Sensor</th>
+                            <th className="px-2 py-2">Location</th>
+                            <th className="px-1 py-2 text-xs">Leak Time</th>
+                            <th className="px-2 py-2">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leakData.map((leak) => (
+                            <tr
+                              key={leak.id}
+                              className="border-b border-gray-300"
+                            >
+                              <td className="px-1 py-1 text-center text-xs">
+                                {leak.sensorId}
+                              </td>
+                              <td className="px-1 py-1 text-center text-xs">
+                                {leak.location}
+                              </td>
+                              <td className="px-1 py-1 text-center text-xs">
+                                {new Date(leak.timestamp).toLocaleString(
+                                  "en-HK",
+                                  {
+                                    timeZone: "Asia/Hong_Kong",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  }
+                                )}
+                              </td>
+                              <td className="px-1 py-1 text-center">
+                                <button
+                                  onClick={() => handleAcknowledge(leak.id)}
+                                  className="bg-[#88D89F] hover:bg-green-400 text-white font-bold py-1 px-2 rounded text-xs"
+                                >
+                                  ACK
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
-    {/* Past 7 Days Alerts Section - Always Shown */}
-    <div className="mt-5 w-full">
-      <h3 className="text-lg font-semibold text-gray-700 mb-3 text-center">
-        Past 7 Days' Alerts
-      </h3>
-      {getPast7DaysAlerts().length > 0 ? (
-        <div className="w-full max-w-[380px] mb-9 h-40 overflow-y-auto border border-gray-300 rounded-md p-2 mx-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-2 py-2">Sensor</th>
-                <th className="px-2 py-2">Location</th>
-                <th className="px-2 py-2">Last Alert</th>
-              </tr>
-            </thead>
-            <tbody>
-              {getPast7DaysAlerts()
-                .sort((a, b) => new Date(b.lastAlert) - new Date(a.lastAlert))
-                .map((sensor) => (
-                <tr key={sensor.id} className="border-b border-gray-200">
-                  <td className="px-2 py-1 text-center text-xs">
-                    {sensor.id}
-                  </td>
-                  <td className="px-2 py-1 text-center text-xs">
-                    {sensor.location}
-                  </td>
-                  <td className="px-2 py-1 text-center text-xs">
-                    {new Date(sensor.lastAlert).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="text-center text-green-500 text-sm mb-9">
-          No leaks detected in past 7 days
-        </div>
-      )}
-    </div>
-  </>
-)}
+                  {/* Past 7 Days Alerts Section - Always Shown */}
+                  <div className="mt-5 w-full">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-3 text-center">
+                      Past 7 Days' Alerts
+                    </h3>
+                    {getPast7DaysAlerts().length > 0 ? (
+                      <div className="w-full max-w-[380px] mb-9 h-40 overflow-y-auto border border-gray-300 rounded-md p-2 mx-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="px-2 py-2">Sensor</th>
+                              <th className="px-2 py-2">Location</th>
+                              <th className="px-2 py-2">Last Alert</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getPast7DaysAlerts()
+                              .sort(
+                                (a, b) =>
+                                  new Date(b.lastAlert) - new Date(a.lastAlert)
+                              )
+                              .map((sensor) => (
+                                <tr
+                                  key={sensor.id}
+                                  className="border-b border-gray-200"
+                                >
+                                  <td className="px-2 py-1 text-center text-xs">
+                                    {sensor.id}
+                                  </td>
+                                  <td className="px-2 py-1 text-center text-xs">
+                                    {sensor.location}
+                                  </td>
+                                  <td className="px-2 py-1 text-center text-xs">
+                                    {new Date(
+                                      sensor.lastAlert
+                                    ).toLocaleDateString()}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center text-green-500 text-sm mb-9">
+                        No leaks detected in past 7 days
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Sensor Grid - Left side */}
@@ -570,7 +633,6 @@ const Leakage = () => {
                             </p>
                           </div>
                         </div>
-                        
                       </div>
 
                       {/* Status Badge */}
@@ -625,8 +687,6 @@ const Leakage = () => {
                           </p>
                         </div>
                       </div>
-
-                     
                     </div>
                   ))}
               </div>

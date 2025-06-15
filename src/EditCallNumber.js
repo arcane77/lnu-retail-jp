@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./components/Sidebar";
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronUp, ChevronDown } from "lucide-react";
 
 const EditCallNumber = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -11,6 +11,8 @@ const EditCallNumber = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [editingRow, setEditingRow] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -21,6 +23,8 @@ const EditCallNumber = () => {
     stop_character: "",
     stop_number: "",
     prefix: "",
+    suffix: "",
+    book_defn: "",
   });
 
   // Data state
@@ -64,6 +68,8 @@ const EditCallNumber = () => {
       stop_character: row.stop_character || "",
       stop_number: row.stop_number?.toString() || "",
       prefix: row.prefix || "",
+      suffix: row.suffix || "",
+      book_defn: row.book_defn || "",
     });
   };
 
@@ -77,6 +83,8 @@ const EditCallNumber = () => {
       stop_character: "",
       stop_number: "",
       prefix: "",
+      suffix: "",
+      book_defn: "",
     });
   };
 
@@ -91,6 +99,8 @@ const EditCallNumber = () => {
       stop_character: "",
       stop_number: "",
       prefix: "",
+      suffix: "",
+      book_defn: "",
     });
   };
 
@@ -144,20 +154,21 @@ const EditCallNumber = () => {
         "https://lnudevices-dot-optimus-hk.df.r.appspot.com/shelf-number";
       let method = "POST";
 
-      // Create body with the format the API expects (combined start/end fields)
+      // Create body with all fields (database has these columns)
       const body = {
         book_shelf_number: formData.book_shelf_number.trim(),
         location_code: formData.location_code.trim(),
         start: formData.start_character.trim() + formData.start_number.trim(),
         end: formData.stop_character.trim() + formData.stop_number.trim(),
         prefix: formData.prefix.trim() || null,
+        suffix: formData.suffix.trim() || null,
+        book_defn: formData.book_defn.trim() || null,
       };
 
-      // For editing, include ID in body (as per Swagger spec)
+      // For editing, include ID in body
       if (editingRow) {
         method = "PUT";
-        body.id = editingRow; // ID in body for PUT requests
-        url = `https://lnudevices-dot-optimus-hk.df.r.appspot.com/shelf-number`;
+        body.id = editingRow;
       }
 
       console.log("API Request Details:", {
@@ -198,6 +209,8 @@ const EditCallNumber = () => {
         stop_character: "",
         stop_number: "",
         prefix: "",
+        suffix: "",
+        book_defn: "",
       });
 
       await fetchCallNumbers();
@@ -238,6 +251,59 @@ const EditCallNumber = () => {
       setLoading(false);
     }
   };
+
+  const handleSort = (key) => {
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <ChevronUp className="w-4 h-4 text-gray-400" />;
+    }
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="w-4 h-4 text-gray-600" />
+    ) : (
+      <ChevronDown className="w-4 h-4 text-gray-600" />
+    );
+  };
+
+  // Filter data based on search
+  const filteredData = callNumberData.filter(
+  (row) =>
+    row.book_shelf_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.location_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.book_defn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.start_character?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.start_number?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.stop_character?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.stop_number?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.prefix?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    row.suffix?.toLowerCase().includes(searchTerm.toLowerCase())
+);
+
+  // Apply sorting to filtered data
+  const sortedAndFilteredData = React.useMemo(() => {
+    let sortableData = [...filteredData];
+    if (sortConfig.key) {
+      sortableData.sort((a, b) => {
+        const aValue = a[sortConfig.key] || "";
+        const bValue = b[sortConfig.key] || "";
+
+        if (aValue < bValue) {
+          return sortConfig.direction === "asc" ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === "asc" ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableData;
+  }, [filteredData, sortConfig]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -282,6 +348,17 @@ const EditCallNumber = () => {
             >
               Add Call Number
             </button>
+          </div>
+
+          {/* Search Bar */}
+          <div className="mb-6">
+            <input
+              type="text"
+              placeholder="Search by Shelf Number, Label, Start Char, Prefix...."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
           </div>
 
           {/* Notification Messages */}
@@ -400,6 +477,34 @@ const EditCallNumber = () => {
                     placeholder="e.g. DVD"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Suffix
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.suffix}
+                    onChange={(e) =>
+                      handleInputChange("suffix", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. VOL"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Label
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.book_defn}
+                    onChange={(e) =>
+                      handleInputChange("book_defn", e.target.value)
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g. book"
+                  />
+                </div>
               </div>
               <div className="flex justify-end space-x-2 mt-4">
                 <button
@@ -411,7 +516,7 @@ const EditCallNumber = () => {
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="border border-gray-500 bg-transparent hover:bg-gray-600 text-grey-500 px-4 py-2 rounded-md shadow-sm font-medium"
+                  className="border border-gray-500 bg-transparent hover:bg-gray-600 text-black hover:text-white px-4 py-2 rounded-md shadow-sm font-medium"
                 >
                   Cancel
                 </button>
@@ -426,51 +531,99 @@ const EditCallNumber = () => {
             </div>
           ) : (
             <div className="bg-white border border-[#E2E2E4] custom-shadow rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[520px] relative">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-100">
+                  <thead className="bg-gray-100 sticky top-0 z-10">
                     <tr>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("book_shelf_number")}
                       >
-                        Book Shelf Number
+                        <div className="flex items-center justify-between">
+                          Book Shelf Number
+                          {getSortIcon("book_shelf_number")}
+                        </div>
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("book_defn")}
                       >
-                        Location Code
+                        <div className="flex items-center justify-between">
+                          Label
+                          {getSortIcon("book_defn")}
+                        </div>
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("location_code")}
                       >
-                        Start Character
+                        <div className="flex items-center justify-between">
+                          Location Code
+                          {getSortIcon("location_code")}
+                        </div>
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("start_character")}
                       >
-                        Start Number
+                        <div className="flex items-center justify-between">
+                          Start Character
+                          {getSortIcon("start_character")}
+                        </div>
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("start_number")}
                       >
-                        Stop Character
+                        <div className="flex items-center justify-between">
+                          Start Number
+                          {getSortIcon("start_number")}
+                        </div>
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("stop_character")}
                       >
-                        Stop Number
+                        <div className="flex items-center justify-between">
+                          Stop Character
+                          {getSortIcon("stop_character")}
+                        </div>
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-sm font-medium text-gray-600"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("stop_number")}
                       >
-                        Prefix
+                        <div className="flex items-center justify-between">
+                          Stop Number
+                          {getSortIcon("stop_number")}
+                        </div>
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("prefix")}
+                      >
+                        <div className="flex items-center justify-between">
+                          Prefix
+                          {getSortIcon("prefix")}
+                        </div>
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-6 py-3 text-left text-sm font-medium text-gray-600 cursor-pointer hover:bg-gray-200 select-none"
+                        onClick={() => handleSort("suffix")}
+                      >
+                        <div className="flex items-center justify-between">
+                          Suffix
+                          {getSortIcon("suffix")}
+                        </div>
                       </th>
                       <th
                         scope="col"
@@ -481,7 +634,7 @@ const EditCallNumber = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {callNumberData.map((row) => (
+                    {sortedAndFilteredData.map((row) => (
                       <tr key={row.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {editingRow === row.id ? (
@@ -498,6 +651,20 @@ const EditCallNumber = () => {
                             />
                           ) : (
                             row.book_shelf_number
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.book_defn}
+                              onChange={(e) =>
+                                handleInputChange("book_defn", e.target.value)
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.book_defn || "-"
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -596,6 +763,20 @@ const EditCallNumber = () => {
                             row.prefix || "-"
                           )}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {editingRow === row.id ? (
+                            <input
+                              type="text"
+                              value={formData.suffix}
+                              onChange={(e) =>
+                                handleInputChange("suffix", e.target.value)
+                              }
+                              className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            row.suffix || "-"
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           {editingRow === row.id ? (
                             <div className="flex justify-end space-x-2">
@@ -635,7 +816,7 @@ const EditCallNumber = () => {
                   </tbody>
                 </table>
               </div>
-              {callNumberData.length === 0 && !loading && (
+              {sortedAndFilteredData.length === 0 && !loading && (
                 <div className="text-center py-8 text-gray-500">
                   No call numbers found. Click "Add Call Number" to create one.
                 </div>

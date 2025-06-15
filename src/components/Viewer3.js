@@ -131,7 +131,7 @@ const Viewer3 = () => {
       try {
         console.log("Fetching air quality data...");
         const response = await fetch(
-          "https://lnuweather-dot-optimus-hk.df.r.appspot.com/api/aqhi"
+          "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/aqhi"
         );
 
         if (!response.ok) {
@@ -294,7 +294,7 @@ const Viewer3 = () => {
     const fetchTemperature = async () => {
       try {
         console.log("Fetching temperature data...");
-        const response = await fetch("https://lnuweather-dot-optimus-hk.df.r.appspot.com/api/weather");
+        const response = await fetch("https://njs-01.optimuslab.space/lnu-footfall/floor-zone/weather");
         
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);

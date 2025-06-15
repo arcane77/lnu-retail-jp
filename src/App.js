@@ -16,6 +16,7 @@ import MainAnalytics from "./components/MainAnalytics";
 import EditSpaces from "./components/EditSpaces";
 import Historical from "./components/Historical"
 import EditCallNumber from "./EditCallNumber";
+import DeskLogic from "./components/EditDeskLogic";
 
 // Authentication check function
 const isAuthenticated = () => {
@@ -71,6 +72,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <Historical />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/desk-logic"
+          element={
+            <ProtectedRoute>
+              <DeskLogic />
             </ProtectedRoute>
           }
         />

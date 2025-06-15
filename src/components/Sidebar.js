@@ -243,6 +243,11 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
             icon: <SquarePen size={21} />,
           },
           {
+            name: "Edit Desk Logic",
+            path: "/desk-logic",
+            icon: <SquarePen size={21} />,
+          },
+          {
             name: "Edit Facilities",
             path: "/facility",
             icon: <MapPinCheck size={21} />,
