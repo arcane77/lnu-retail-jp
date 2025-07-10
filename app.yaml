@@ -6,10 +6,10 @@ entrypoint: npm start
 
 
 env_variables:
-  AUTH0_DOMAIN: "optimus-sandbox.us.auth0.com"
-  AUTH0_CLIENT_ID: "$oqwR0oWXVLzbdfjiQ13xq8TvZW5a2aNR"
-  AUTH0_CLIENT_SECRET: "3dfam3ojhiGEgoyu0veB_eWCBlAwKw432DH5iNagX9VyeeIQ6GSNx9g-nXrEoxLv"
-  AUTH0_CALLBACK_URL: "https://admin-dot-optimus-lnu.df.r.appspot.com/login" 
+  AUTH0_DOMAIN: "retail-tech.us.auth0.com"
+  AUTH0_CLIENT_ID: "n9I94AZIJcNyUf1eYAv2vR1vRyIy0jbm"
+  AUTH0_CLIENT_SECRET: "PfHDMz83-11xJauf9wKVslW182cDdHJKy9Api9li5bwlhcGuKtBiMjmUJRSh6-lD"
+  AUTH0_CALLBACK_URL: "https://retail-dot-optimus-lnu.df.r.appspot.com//login" 
   
 
 handlers:

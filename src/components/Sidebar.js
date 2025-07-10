@@ -74,9 +74,9 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
 
   // Auth0 Management API configuration
   const config = {
-    domain: "optimus-sandbox.us.auth0.com",
-    clientId: "yuB3H9KXumDFmTJxmJAZaHWU4lKTdsw1",
-    audience: "https://optimus-sandbox.us.auth0.com/api/v2/",
+    domain: "retail-tech.us.auth0.com",
+    clientId: "fI7azlu3YxgLrgBkeN2PSn4Iqqy0GlSK",
+    audience: "https://retail-tech.us.auth0.com/api/v2/",
   };
 
   // Fetch access token
@@ -87,7 +87,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
       body: JSON.stringify({
         client_id: config.clientId,
         client_secret:
-          "IimPkgggEtML5dusNSqzBAD7kYF80eY5q-hZxaktThaZEjhCjUsGyBhrYzkaeHEs",
+          "HzzTiV8-a9xgDen2g_yBp-YAkbHhWmIS1jhUdayrjnWjhuEK1acaNl2l2HCuDi8W",
         audience: config.audience,
         grant_type: "client_credentials",
         scope:
@@ -382,12 +382,12 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
   const sendPasswordResetEmail = async () => {
     try {
       const response = await fetch(
-        "https://optimus-sandbox.us.auth0.com/dbconnections/change_password",
+        "https://retail-tech.us.auth0.com/dbconnections/change_password",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            client_id: "yuB3H9KXumDFmTJxmJAZaHWU4lKTdsw1",
+            client_id: "fI7azlu3YxgLrgBkeN2PSn4Iqqy0GlSK",
             email: user.email,
             connection: "Username-Password-Authentication",
           }),

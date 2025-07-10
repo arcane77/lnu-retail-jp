@@ -20,13 +20,13 @@ const Login3 = () => {
         grant_type: "http://auth0.com/oauth/grant-type/password-realm",
         username: email,
         password: password,
-        audience: "https://optimus-sandbox.us.auth0.com/api/v2/",
-        client_id: "oqwR0oWXVLzbdfjiQ13xq8TvZW5a2aNR",
+        audience: "https://retail-tech.us.auth0.com/api/v2/",
+        client_id: "n9I94AZIJcNyUf1eYAv2vR1vRyIy0jbm",
         realm: "Username-Password-Authentication",
         scope: "openid profile email",
       });
   
-      const response = await fetch("https://optimus-sandbox.us.auth0.com/oauth/token", {
+      const response = await fetch("https://retail-tech.us.auth0.com/oauth/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -41,7 +41,7 @@ const Login3 = () => {
         throw new Error(data.error_description || "Login failed");
       }
   
-      const userResponse = await fetch("https://optimus-sandbox.us.auth0.com/userinfo", {
+      const userResponse = await fetch("https://retail-tech.us.auth0.com/userinfo", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${data.access_token}`,
@@ -78,14 +78,14 @@ const handleSignUp = async () => {
 
   try {
     const signUpData = {
-      client_id: "oqwR0oWXVLzbdfjiQ13xq8TvZW5a2aNR",
+      client_id: "n9I94AZIJcNyUf1eYAv2vR1vRyIy0jbm",
       email: email,
       password: password,
       connection: "Username-Password-Authentication",
       user_metadata: { username: username }, // ✅ Store username in metadata
     };
 
-    const response = await fetch("https://optimus-sandbox.us.auth0.com/dbconnections/signup", {
+    const response = await fetch("https://retail-tech.us.auth0.com/dbconnections/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(signUpData),

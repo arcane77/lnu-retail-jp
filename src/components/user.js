@@ -34,9 +34,9 @@ const UserManagement = () => {
 
   // Auth0 Management API configuration
   const config = {
-    domain: "optimus-sandbox.us.auth0.com",
-    clientId: "yuB3H9KXumDFmTJxmJAZaHWU4lKTdsw1",
-    audience: "https://optimus-sandbox.us.auth0.com/api/v2/",
+    domain: "retail-tech.us.auth0.com",
+    clientId: "fI7azlu3YxgLrgBkeN2PSn4Iqqy0GlSK",
+    audience: "https://retail-tech.us.auth0.com/api/v2/",
   };
 
   // Fetch access token
@@ -47,7 +47,7 @@ const UserManagement = () => {
       body: JSON.stringify({
         client_id: config.clientId,
         client_secret:
-          "IimPkgggEtML5dusNSqzBAD7kYF80eY5q-hZxaktThaZEjhCjUsGyBhrYzkaeHEs",
+          "HzzTiV8-a9xgDen2g_yBp-YAkbHhWmIS1jhUdayrjnWjhuEK1acaNl2l2HCuDi8W",
         audience: config.audience,
         grant_type: "client_credentials",
         scope:
@@ -215,7 +215,7 @@ const UserManagement = () => {
     try {
       const token = await getAccessToken();
       const newRoleId =
-        newRole === "Admin" ? "rol_atrpv1Xx2T4nnNcM" : "rol_ngh0Bwn2b2T5eH37";
+        newRole === "Admin" ? "rol_ki2dY3qc8pxWwQKg" : "rol_oJBgwUUrLXq1pToi";
 
       // Remove existing roles first (if required)
       await fetch(`${config.audience}users/${userId}/roles`, {
@@ -225,7 +225,7 @@ const UserManagement = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          roles: ["rol_atrpv1Xx2T4nnNcM", "rol_ngh0Bwn2b2T5eH37"],
+          roles: ["rol_ki2dY3qc8pxWwQKg", "rol_oJBgwUUrLXq1pToi"],
         }),
       });
 
@@ -321,8 +321,8 @@ const UserManagement = () => {
         // Assign Auth0 role using Role ID
         const roleId =
           newUser.role === "Admin"
-            ? "rol_atrpv1Xx2T4nnNcM"
-            : "rol_ngh0Bwn2b2T5eH37";
+            ? "rol_ki2dY3qc8pxWwQKg"
+            : "rol_oJBgwUUrLXq1pToi";
         await assignUserRole(createdUser.user_id, newUser.role);
 
         // app_metadata is updated after role assignment
