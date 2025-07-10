@@ -3,6 +3,7 @@ import { FC, useEffect, useState } from "react";
 import { assets } from "./Assets.tsx";
 import { useAuth0 } from '@auth0/auth0-react';
 import Sidebar from '../src/components/Sidebar.js';
+import Header from "./components/Header.js";
 
 
 const SpaceViewer: FC = () => {
@@ -104,24 +105,12 @@ const SpaceViewer: FC = () => {
               logout={logout} 
             />
 
-<header className='bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between'>
-        <div className='flex items-center h-full'>
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${isSidebarOpen ? 'hidden' : ''}`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-          
-        </div>
-        <img 
-            src="/library-logo-final_2024.png" 
-            alt="LNU Logo" 
-            className='h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto'
-          />
-      </header>
+<Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
       
       {/* Main content area */}
       <div className="flex-1 flex flex-col">

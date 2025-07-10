@@ -302,7 +302,7 @@ const PeakBuildingDaily = ({ selectedDate, reportType }) => {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Peak Occupancy
+        ピーク時の稼働率​
           {/* {peakData.isLivePeak && (
             <span className="ml-2 text-sm font-normal text-red-500">
               (Live Peak)
@@ -311,7 +311,7 @@ const PeakBuildingDaily = ({ selectedDate, reportType }) => {
         </h2>
         {loading ? (
           <div className="flex justify-center items-center h-48">
-            <p>Loading peak data...</p>
+            <p>データを読み込み中...</p>
           </div>
         ) : error ? (
           <div className="flex justify-center items-center h-48">
@@ -357,7 +357,7 @@ const PeakBuildingDaily = ({ selectedDate, reportType }) => {
                 {Math.round(peakData.peakOccupancy)}
               </p>
               <p className="text-gray-600">
-                {peakData.isLivePeak ? "Peak People (Live)" : `Peak People (${formatHour(peakData.peakHour)})`}
+                {peakData.isLivePeak ? "最大人数 (ライブ)" : `最大人数 (${formatHour(peakData.peakHour)})`}
               </p>
             </div>
           </div>
@@ -369,11 +369,11 @@ const PeakBuildingDaily = ({ selectedDate, reportType }) => {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Peak Occupancy
+        ピーク時の稼働率​
         </h2>
         {loading ? (
           <div className="flex justify-center items-center h-48">
-            <p>Loading peak data...</p>
+            <p>データを読み込み中...</p>
           </div>
         ) : error ? (
           <div className="flex justify-center items-center h-48">
@@ -419,7 +419,7 @@ const PeakBuildingDaily = ({ selectedDate, reportType }) => {
                 {Math.round(hourlyPeakData.peakOccupancy)}
               </p>
               <p className="text-gray-600">
-                Peak People Count
+              ピーク時の人数 
                 {hourlyPeakData.peakDate && (
                   <span className="ml-1">
                     ({format(new Date(hourlyPeakData.peakDate), "MMM d, yyyy")})

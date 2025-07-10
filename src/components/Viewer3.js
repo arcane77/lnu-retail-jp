@@ -6,7 +6,7 @@ import Sidebar from "./Sidebar";
 import useIAQData from "./IAQdata";
 
 const Viewer3 = () => {
-  const currentDate = new Date();
+  const [currentDate, setCurrentDate] = useState(new Date());
   const { logout } = useAuth0();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const sidebarRef = useRef(null);
@@ -15,10 +15,13 @@ const Viewer3 = () => {
   const navigate = useNavigate();
   const [activeFloor, setActiveFloor] = useState("1/F"); // Track active floor
   const [zoneData, setZoneData] = useState({});
+  const [liveCount, setLiveCount] = useState(0);
   const [crData, setCRData] = useState({
     "1F-CR1": { occupancy: 0, timestamp: 0 },
     "1F-CR2": { occupancy: 0, timestamp: 0 },
   });
+
+  const [lrtData, setLRTData] = useState({ occupancy: 0, timestamp: 0 });
 
   const [mprData, setMPRData] = useState({
     "3F-MPR-V01": { occupancy: 0, timestamp: 0 },
@@ -33,10 +36,16 @@ const Viewer3 = () => {
 
   const day = currentDate.getDate().toString().padStart(2, "0");
   const month = currentDate.toLocaleString("en-US", { month: "short" });
-  const year = currentDate.getFullYear();
-  const weekday = currentDate.toLocaleString("en-US", { weekday: "long" });
-
-  const formattedDate = `${day} ${month} ${year}, ${weekday}`; // format date
+  const shortWeekday = currentDate.toLocaleString("en-US", { weekday: "short" });
+  const time = currentDate.toLocaleString("en-US", { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true 
+  });
+  
+  const formattedDate = `${day} ${month}, ${shortWeekday}`; 
+  const formattedTime = time;
 
   // Map for floor IDs to match the API format
   const floorIdMap = {
@@ -48,18 +57,72 @@ const Viewer3 = () => {
 
   // Map for zone names
   const zoneNameMap = {
-    South: "Zone A",
-    Central: "Zone B",
-    North: "Zone C",
+    South: "ゾーン A",
+    Central: "ゾーン B",
+    North: "ゾーン C",
   };
+
+  // const zoneNameMap = {
+  //   South: "Zone A",
+  //   Central: "Zone B",
+  //   North: "Zone C",
+  // };
 
   // Floor and zone availability mapping
   const floorZoneMapping = {
-    "1/F": ["Zone A", "Zone B", "Zone C"],
-    "M/F": ["Zone A", "Zone C"],
-    "2/F": ["Zone A", "Zone B", "Zone C"],
-    "3/F": ["Floor", "Multi Purpose Room 2", "Multi Purpose Room 1"],
+    "1/F": ["ゾーン A", "ゾーン B", "ゾーン C"],
+    "M/F": ["ゾーン A", "ゾーン C"],
+    "2/F": ["ゾーン A", "ゾーン B", "ゾーン C"],
+   "3/F": ["床", "多目的ルーム 2", "多目的ルーム 1"],
   };
+
+  // const floorZoneMapping = {
+  //   "1/F": ["Zone A", "Zone B", "Zone C"],
+  //   "M/F": ["Zone A", "Zone C"],
+  //   "2/F": ["Zone A", "Zone B", "Zone C"],
+  //   "3/F": ["Floor", "Multi Purpose Room 2", "Multi Purpose Room 1"],
+  // };
+
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentDate(new Date());
+    };
+  
+    // Update immediately
+    updateTime();
+  
+    // Update every second
+    const intervalId = setInterval(updateTime, 1000);
+  
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const fetchLiveCount = async () => {
+    try {
+      const response = await fetch(
+        "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/live"
+      );
+      const data = await response.json();
+      
+      // Filter Main-Entrance data like in LiveBuilding.js
+      const entranceData = data.filter(item => item.zone_name === "Main-Entrance");
+      let totalOccupancy = 0;
+      
+      entranceData.forEach((item) => {
+        totalOccupancy += Math.max(0, item.total_occupancy);
+      });
+      
+      setLiveCount(totalOccupancy);
+    } catch (error) {
+      console.error("Error fetching live count:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveCount();
+    const intervalId = setInterval(fetchLiveCount, 60000); // Update every minute
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Fetch Computer Room occupancy data
   const fetchOccupancyData = async () => {
@@ -72,6 +135,8 @@ const Viewer3 = () => {
       // Process the response data
       const processedCRData = {};
       const processedMPRData = {};
+
+      
 
       // Check if data is an array
       if (Array.isArray(data)) {
@@ -91,6 +156,8 @@ const Viewer3 = () => {
             };
           }
         });
+
+        
 
         // Update Computer Room data
         setCRData((prevData) => {
@@ -116,8 +183,8 @@ const Viewer3 = () => {
   // fetch immediately
   fetchOccupancyData();
 
-  // every 20 seconds
-  const intervalId = setInterval(fetchOccupancyData, 20000);
+  // every 40 seconds
+  const intervalId = setInterval(fetchOccupancyData, 40000);
 
   useEffect(() => {
     // Default fallback values if API fails
@@ -276,6 +343,23 @@ const Viewer3 = () => {
           occupancy: occupiedCount,
           timestamp: Date.now(),
         });
+
+        // Count occupied LRT devices
+      let lrtOccupiedCount = 0;
+      if (Array.isArray(data)) {
+        data.forEach((item) => {
+          if (item.area && item.area.match(/^LRT\d+-/) && 
+              (item.occupancy === "occupied" || item.occupancy === "countdown")) {
+            lrtOccupiedCount++;
+          }
+        });
+      }
+
+      setLRTData({
+        occupancy: lrtOccupiedCount,
+        timestamp: Date.now(),
+      });
+
       } catch (error) {
         console.error("Error fetching CPR2 data:", error);
       }
@@ -284,9 +368,19 @@ const Viewer3 = () => {
     // Fetch immediately
     fetchCPR2Data();
 
-    // Fetch every 20 seconds
-    const intervalId = setInterval(fetchCPR2Data, 20000);
+    // Fetch every 40 seconds
+    const intervalId = setInterval(fetchCPR2Data, 40000);
 
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    // fetch immediately
+    fetchOccupancyData();
+  
+    // every 40 seconds
+    const intervalId = setInterval(fetchOccupancyData, 40000);
+  
     return () => clearInterval(intervalId);
   }, []);
 
@@ -446,11 +540,11 @@ const Viewer3 = () => {
           // Determine which zone (A, B, C) based on zone name
           let mappedZone = null;
           if (zoneName.includes("south")) {
-            mappedZone = "Zone A";
+            mappedZone = "ゾーン A";
           } else if (zoneName.includes("central")) {
-            mappedZone = floorId === "3F" ? "Floor" : "Zone B";
+            mappedZone = floorId === "3F" ? "床" : "ゾーン B";
           } else if (zoneName.includes("north")) {
-            mappedZone = "Zone C";
+            mappedZone = "ゾーン C";
           }
 
           // Skip if not a main zone
@@ -502,15 +596,15 @@ const Viewer3 = () => {
 
         // Initialize Multi Purpose Room zones with default IAQ values
         if (processedData["3/F"]) {
-          if (!processedData["3/F"]["Multi Purpose Room 1"]) {
-            processedData["3/F"]["Multi Purpose Room 1"] = {
+          if (!processedData["3/F"]["多目的ルーム 1"]) {
+            processedData["3/F"]["多目的ルーム 1"] = {
               co2: 580,
               temp: 25,
               humidity: 64,
             };
           }
-          if (!processedData["3/F"]["Multi Purpose Room 2"]) {
-            processedData["3/F"]["Multi Purpose Room 2"] = {
+          if (!processedData["3/F"]["多目的ルーム 2"]) {
+            processedData["3/F"]["多目的ルーム 2"] = {
               co2: 580,
               temp: 25,
               humidity: 64,
@@ -565,8 +659,8 @@ const Viewer3 = () => {
     //  first render
     fetchZoneData();
 
-    // every 15 seconds
-    const intervalId = setInterval(fetchZoneData, 20000);
+    // every 40 seconds
+    const intervalId = setInterval(fetchZoneData, 40000);
 
     return () => clearInterval(intervalId);
   }, [zoneIAQData]);
@@ -701,43 +795,17 @@ const Viewer3 = () => {
   );
 
   // Component for zone occupancy indicator
-  const ZoneIndicator = ({ zoneName, zoneData }) => {
-    // Determine which computer room info to show based on the zone
-    let roomInfo = null;
+const ZoneIndicator = ({ zoneName, zoneData }) => {
+  // Determine which computer room info to show based on the zone
+  let roomInfo = null;
 
-    if (activeFloor === "1/F") {
-      if (zoneName === "Zone B") {
-        roomInfo = (
-          <div>
-            <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 mb-4 w-fit rounded-lg">
-            <div className="flex items-center text-[17px] font-semibold mb-1">
-              Computer Room 1:{" "}
-              <div className=" ml-3 font-bold">
-                {crData["1F-CR1"]?.occupancy || 0}
-              </div>
-            </div>
-          </div>
-            <div className="mt-4 bg-gray-100 pr-6 py-2 pl-2 w-fit rounded-lg">
-              <div className="flex items-center text-[17px] font-semibold mb-1">
-                Computer Room 2:{" "}
-                <div className=" ml-3 font-bold">{cpr2Data?.occupancy || 0}</div>
-              </div>
-            </div>
-          </div>
-        );
-      } 
-    }
-
+  if (activeFloor === "1/F" && zoneName === "ゾーン B") {
     return (
       <div className="flex flex-col">
-        <h3 className="lg:text-2xl xl:text-3xl font-bold mb-2">{zoneName}</h3>
+        <h3 className="lg:text-2xl xl:text-3xl font-bold mb-2.5">{zoneName}</h3>
         <div className="flex items-center">
           <span className="text-3xl xl:text-5xl 2xl:text-6xl md:text-3xl lg:text-4xl font-bold">
-            {zoneName === "Multi Purpose Room 2"
-              ? mprData["3F-MPR-V02"]?.occupancy || 0
-              : zoneName === "Multi Purpose Room 1"
-              ? mprData["3F-MPR-V01"]?.occupancy || 0
-              : zoneData?.totalOccupancy || 0}
+            {zoneData?.totalOccupancy || 0}
           </span>
           <div className="ml-2">
             {zoneData?.status === "available" && availableIcon}
@@ -746,32 +814,96 @@ const Viewer3 = () => {
             {!zoneData?.status && availableIcon}
           </div>
         </div>
+
+        {/* Room counts first */}
         <div className="text-[16px] mt-2">
-          {!zoneName.includes("Multi Purpose Room") && (
-            <div className="font-medium">
-              Average Occupancy: {zoneData?.occupancy || "0%"}
-            </div>
-          )}
-          <div>
-            CO<sub>2</sub> {zoneData?.co2 || 580}
-            <sub>ppm</sub>
+          <div className="font-medium mb-0.5">
+            <strong>コンピュータルーム1 1:</strong> {crData["1F-CR1"]?.occupancy || 0} Users
           </div>
-          <div>
-            {" "}
-            <span className="pr-2">Temperature</span>
-            {zoneData?.temp || 25} °C
+          <div className="font-medium  mb-0.5">
+            <strong>コンピュータルーム1 2:</strong> {cpr2Data?.occupancy || 0} Users
           </div>
-          <div>
-            <span className=" pr-2">Humidity</span>
-            {zoneData?.humidity || 64}%
+          <div className="font-medium  mb-0.5">
+            <strong>レイトリーディングルーム​
+            :</strong> {lrtData?.occupancy || 0} Users
+          </div>
+          <div className="font-medium  mb-0.5">
+            <strong>平均稼働率:</strong> {zoneData?.occupancy || "0%"}
+          </div>
+          <div className="font-medium  mb-0.5">
+            <strong>温度:</strong> {zoneData?.temp || 25}°C
+          </div>
+          <div className="font-medium  mb-0.5">
+            <strong>湿度:</strong> {zoneData?.humidity || 64}%
+          </div>
+          <div className="font-medium  mb-0.5">
+            <strong>CO2 Level:</strong>{" "}
+            <span className={`${
+              (zoneData?.co2 || 580) > 1500 
+                ? 'text-red-500 font-semibold' 
+                : (zoneData?.co2 || 580) > 800 
+                  ? 'text-amber-500 font-semibold' 
+                  : 'text-[#14c408] font-semibold'
+            }`}>
+              {zoneData?.co2 || 580} ppm
+            </span>
           </div>
         </div>
-
-        {/* Computer Room Info */}
-        {roomInfo}
       </div>
     );
-  };
+  }
+
+  // For all other zones (not Zone B on 1/F)
+  return (
+    <div className="flex flex-col">
+      <h3 className="lg:text-2xl xl:text-3xl font-bold mb-2">{zoneName}</h3>
+      <div className="flex items-center">
+        <span className="text-3xl xl:text-5xl 2xl:text-6xl md:text-3xl lg:text-4xl font-bold">
+          {zoneName === "多目的ルーム 2"
+            ? mprData["3F-MPR-V02"]?.occupancy || 0
+            : zoneName === "多目的ルーム 1"
+            ? mprData["3F-MPR-V01"]?.occupancy || 0
+            : zoneData?.totalOccupancy || 0}
+        </span>
+        <div className="ml-2">
+          {zoneData?.status === "available" && availableIcon}
+          {zoneData?.status === "less-available" && lessAvailableIcon}
+          {zoneData?.status === "crowded" && crowdedIcon}
+          {!zoneData?.status && availableIcon}
+        </div>
+      </div>
+      <div className="text-[16px] mt-2">
+        {!zoneName.includes("多目的ルーム") && (
+          <div className="font-semibold">
+            平均稼働率: {zoneData?.occupancy || "0%"}
+          </div>
+        )}
+        
+        <div>
+          <span className="pr-2 font-semibold">温度:</span>
+          {zoneData?.temp || 25} °C
+        </div>
+        <div>
+          <span className="pr-2 font-semibold">湿度:</span>
+          {zoneData?.humidity || 64}%
+        </div>
+        <div className="font-semibold">
+          CO<sub>2</sub> Level:{" "}
+          <span className={`${
+            (zoneData?.co2 || 580) > 1500 
+              ? 'text-red-500' 
+              : (zoneData?.co2 || 580) > 800 
+                ? 'text-amber-500' 
+                : 'text-[#14c408]'
+          } font-semibold`}>
+            {zoneData?.co2 || 580}
+          </span>
+          <sub>ppm</sub>
+        </div>
+      </div>
+    </div>
+  );
+};
 
   // Get the available zones for the current floor
   const getZonesForCurrentFloor = () => {
@@ -809,86 +941,91 @@ const Viewer3 = () => {
         logout={logout}
       />
 
-      {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+     {/* Header */}
+<header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between px-4">
+  {/* Left side - Hamburger and Logo */}
+  <div className="flex items-center h-full">
+    <button
+      className={`flex flex-col justify-center items-start space-y-1 pl-4 ${
+        isSidebarOpen ? "hidden" : ""
+      }`}
+      onClick={() => setIsSidebarOpen(true)}
+    >
+      <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+      <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+      <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
+    </button>
+    <img
+      src="/sp.svg"
+      alt="LNU Logo"
+      className="h-6 sm:h-6 lg:h-8 xl:h-8 2xl:h-10 ml-6"
+    />
+  </div>
 
-      {/* Content */}
-      <div className="px-6 lg:px-14 xl:px-14 2xl:px-14 pb-6">
-        {/* date and weather */}
-        <div className="mt-[74px] lg:mt-32 xl:mt-[130px] flex justify-between items-center text-[18px] sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-semibold mb-8">
-          <div className="text-gray-700">{formattedDate}</div>
-          <div className="text-gray-700 md:text-xl sm:text-lg lg:text-[22px] text-[16px] flex flex-wrap items-center gap-4">
-          {weather && (
-              <div className="flex items-center mr-1 space-x-5">
-                <FaTemperatureHigh className="mx-2 text-red-400" /> {weather.temp}°C
-                <FaTint className="mx-2 text-blue-300" /> {weather.humidity}%
-              </div>
-            )}
-            {airQuality && (
-              <div className="flex  space-x-4">
-                {/* PM2.5 - More prominent with health indicator */}
-                <div className="flex items-center">
-                  <FaWind className="mr-2 text-gray-600" />
-                  <div>
-                    <div className="flex items-center">
-                      <span className="font-semibold">PM2.5:</span>
-                      <span
-                        className={`ml-2 ${
-                          getPM25Level(airQuality.pm25).color
-                        } font-bold`}
-                      >
-                        {airQuality.pm25.toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+  {/* Right side - Live Count, Date/Time, Weather */}
+  <div className="flex items-center lg:space-x-4 xl:space-x-8 text-sm lg:text-base xl:text-lg">
+    {/* Live Count */}
+    <div className="text-center">
+      <div className="font-bold text-orange-500 text-lg lg:text-[22px]">
+        {liveCount}
+      </div>
+      <div className="text-sm font-medium text-gray-600">ライブピープルカウント</div>
+    </div>
 
-                {/* PM10 - Secondary importance */}
-                <div className="flex items-center">
-                  <FaWind className="mr-2 text-gray-400" />
-                  <div>
-                    <div className="flex items-center">
-                      <span>PM10:</span>
-                      <span
-                        className={`ml-2 ${
-                          getPM10Level(airQuality.pm10).color
-                        }`}
-                      >
-                        {airQuality.pm10.toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+    {/* Date and Time */}
+    <div className="text-right -space-y-1">
+      <div className="font-medium text-[15px] text-gray-700">{formattedDate}</div>
+      <div className="text-[16px] text-right font-semibold text-gray-600">{formattedTime}</div>
+    </div>
+
+    {/* Weather */}
+    <div className="flex items-center xl:space-x-6 text-gray-700">
+      {weather && (
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center">
+            <FaTemperatureHigh className="text-red-400 mr-1" />
+            <span>{weather.temp}°C</span>
+          </div>
+          <div className="flex items-center">
+            <FaTint className="text-blue-300 mr-1" />
+            <span>{weather.humidity}%</span>
           </div>
         </div>
+      )}
+      {airQuality && (
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center">
+            <FaWind className="text-gray-600 mr-1" />
+            <span className="text-gray-600 font-medium">PM2.5:</span>
+            <span className={`${getPM25Level(airQuality.pm25).color} font-semibold`}>
+              {airQuality.pm25.toFixed(1)}
+            </span>
+          </div>
+          <div className="flex items-center">
+            <FaWind className="text-gray-400 mr-1" />
+            <span className="text-gray-500 font-medium">PM10:</span>
+            <span className={`${getPM10Level(airQuality.pm10).color} font-medium`}>
+              {airQuality.pm10.toFixed(1)}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+</header>
+
+      {/* Content */}
+      <div className="px-6 lg:px-14 lg:pt-36 xl:px-14 2xl:px-14 pb-6">
+        
 
         {/* viewer section */}
         <div className="rounded-xl border border-[#E2E2E4] shadow-[0_1px_2px_0_#dedede] bg-white">
           {/* title*/}
-          <div className="px-8 pt-6 mb-4">
+          <div className="px-8 pt-4 mb-4">
             <p className="lg:text-3xl md:text-2xl sm:text-xl text-[22px] font-bold pb-2">
-              Live Dashboard
-            </p>
+            フロアプランダッシュボード {/*Floor Plan Dashboard*/}
+            </p> 
+            
 
             {/* Floor navigation tabs */}
             <div className="flex space-x-4 border-b border-gray-200">
@@ -945,7 +1082,7 @@ const Viewer3 = () => {
               >
                 {availableIcon}
               </div>
-              <span>Available</span>
+              <span>利用できる​</span>
             </div>
             <div className="flex items-center">
               <div
@@ -957,7 +1094,7 @@ const Viewer3 = () => {
               >
                 {lessAvailableIcon}
               </div>
-              <span>Less Available</span>
+              <span>利用可能性が低い​</span>
             </div>
             <div className="flex items-center">
               <div
@@ -969,7 +1106,7 @@ const Viewer3 = () => {
               >
                 {crowdedIcon}
               </div>
-              <span>Crowded</span>
+              <span>密集した​</span>
             </div>
           </div>
         </div>

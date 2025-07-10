@@ -8,12 +8,49 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
 
   useImperativeHandle(ref, () => ({
     tableData,
-    convertToHKT
+    convertToHKT,
+    exportToCSV: () => {
+      const csvContent = generateCSV();
+      downloadCSV(csvContent, `water-leak-report-${dateRange.fromDate}-to-${dateRange.toDate}.csv`);
+    }
   }));
 
   const rowsPerPage = 15;
   const indexOfLastRow = currentPage * rowsPerPage;
   const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+
+  const generateCSV = () => {
+    const headers = ['Sensor ID', 'Leak Status', 'Leak Time', 'Acknowledgment Status', 'Acknowledged By', 'Acknowledgment Time'];
+    const csvRows = [headers.join(',')];
+    
+    filteredData.forEach(item => {
+      const row = [
+        item.sensor,
+        item.leakage_status === 1 ? 'Leak Detected' : 'No Leak',
+        convertToHKT(item.leak_time),
+        item.ack_time ? 'Acknowledged' : 'Pending',
+        item.userName || '',
+        item.ack_time ? convertToHKT(item.ack_time) : ''
+      ];
+      csvRows.push(row.map(field => `"${field}"`).join(','));
+    });
+    
+    return csvRows.join('\n');
+  };
+  
+  const downloadCSV = (csvContent, fileName) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   const filteredData =
     deviceFilter === "all"
@@ -96,7 +133,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
       return (
         <div>
           <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-            Acknowledged
+          認めた​
           </span>
           <div className="text-xs mt-1">by {item.userName || 'Unknown'}</div>
           <div className="text-xs mt-1">{convertToHKT(item.ack_time)}</div>
@@ -105,7 +142,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
     } else {
       return (
         <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">
-          Pending
+         保留中
         </span>
       );
     }
@@ -121,11 +158,11 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
             <table className="table-auto w-full">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="text-center px-4 py-4">Sensor ID</th>
-                  <th className="text-center px-4 py-4">Leak Status</th>
+                  <th className="text-center px-4 py-4">センサーID​</th>
+                  <th className="text-center px-4 py-4">リークステータス​</th>
      
-                  <th className="text-center px-4 py-4">Leak Time</th>
-                  <th className="text-center px-4 py-4">Acknowledgment</th>
+                  <th className="text-center px-4 py-4">リークタイム​</th>
+                  <th className="text-center px-4 py-4">承認​</th>
                 </tr>
               </thead>
               <tbody>
@@ -141,7 +178,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
                     <td className="text-center px-4 py-3">{item.sensor}</td>
                     <td className="text-center px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs ${getLeakStatusColor(item.leakage_status)}`}>
-                        {item.leakage_status === 1 ? 'Leak Detected' : 'No Leak'}
+                        {item.leakage_status === 1 ? '漏水を検知しました ' : '漏れなし​'}
                       </span>
                     </td>
         
@@ -179,7 +216,7 @@ const WaterLeakHistorical = forwardRef(({ dateRange, reportType }, ref) => {
           </>
         ) : (
           <div className="text-center py-10">
-            No water leaks detected on selected date
+            選択した日に漏水は検知されませんでした
           </div>
         )}
       </div>

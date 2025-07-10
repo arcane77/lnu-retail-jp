@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./components/Sidebar";
 import { Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import Header from "./components/Header";
 
 const EditCallNumber = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -124,27 +125,27 @@ const EditCallNumber = () => {
   const handleSave = async () => {
     // Validation
     if (!formData.book_shelf_number.trim()) {
-      setError("Book shelf number is required");
+      setError("書架番号は必須です。");
       return;
     }
     if (!formData.location_code.trim()) {
-      setError("Location code is required");
+      setError("ロケーションコードは必須です。");
       return;
     }
     if (!formData.start_character.trim()) {
-      setError("Start character is required");
+      setError("開始文字は必須です。");
       return;
     }
     if (!formData.start_number.trim()) {
-      setError("Start number is required");
+      setError("	開始番号は必須です。");
       return;
     }
     if (!formData.stop_character.trim()) {
-      setError("Stop character is required");
+      setError("終了文字は必須です。");
       return;
     }
     if (!formData.stop_number.trim()) {
-      setError("Stop number is required");
+      setError("終了番号は必須です。");
       return;
     }
 
@@ -195,7 +196,7 @@ const EditCallNumber = () => {
       }
 
       setSuccessMessage(
-        editingRow ? "Updated successfully" : "Created successfully"
+        editingRow ? "正常に更新されました。" : "正常に作成されました。"
       );
       setTimeout(() => setSuccessMessage(""), 3000);
 
@@ -224,7 +225,7 @@ const EditCallNumber = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this record?")) return;
+    if (!window.confirm("このレコードを削除してもよろしいですか？")) return;
 
     setLoading(true);
     try {
@@ -315,38 +316,25 @@ const EditCallNumber = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-28 xl:pt-32 px-4 md:px-8 pb-10">
         <div className="max-w-9xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl md:text-3xl font-semibold text-gray-800">
-              Edit Call Numbers
+            コールナンバーを編集  
             </h1>
             <button
               onClick={handleAdd}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-sm font-medium"
             >
-              Add Call Number
+              コールナンバーを追加
             </button>
           </div>
 
@@ -354,7 +342,7 @@ const EditCallNumber = () => {
           <div className="mb-6">
             <input
               type="text"
-              placeholder="Search by Shelf Number, Label, Start Char, Prefix...."
+              placeholder="書架番号、名称、開始文字、接頭辞などで検索"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -378,12 +366,12 @@ const EditCallNumber = () => {
           {showAddForm && (
             <div className="bg-white border border-[#E2E2E4] custom-shadow rounded-lg p-6 mb-6">
               <h2 className="text-lg font-medium text-gray-800 mb-4">
-                Add New Call Number
+              新しいコールナンバーを追加
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Book Shelf Number
+                  書架番号
                   </label>
                   <input
                     type="text"
@@ -396,7 +384,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Location Code
+                  場所コード 
                   </label>
                   <input
                     type="text"
@@ -409,7 +397,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Start Character
+                  開始文字
                   </label>
                   <input
                     type="text"
@@ -423,7 +411,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Start Number
+                  開始番号
                   </label>
                   <input
                     type="text"
@@ -437,7 +425,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stop Character
+                  終了文字
                   </label>
                   <input
                     type="text"
@@ -451,7 +439,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Stop Number
+                  終了番号
                   </label>
                   <input
                     type="text"
@@ -465,7 +453,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Prefix
+                  接頭辞
                   </label>
                   <input
                     type="text"
@@ -479,7 +467,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Suffix
+                  接尾辞
                   </label>
                   <input
                     type="text"
@@ -493,7 +481,7 @@ const EditCallNumber = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Label
+                  ラベル
                   </label>
                   <input
                     type="text"
@@ -512,13 +500,13 @@ const EditCallNumber = () => {
                   disabled={loading}
                   className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md shadow-sm font-medium disabled:opacity-50"
                 >
-                  {loading ? "Saving..." : "Save"}
+                  {loading ? "保存中..." : "保存"}
                 </button>
                 <button
                   onClick={handleCancel}
                   className="border border-gray-500 bg-transparent hover:bg-gray-600 text-black hover:text-white px-4 py-2 rounded-md shadow-sm font-medium"
                 >
-                  Cancel
+                 キャンセル
                 </button>
               </div>
             </div>
@@ -541,7 +529,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("book_shelf_number")}
                       >
                         <div className="flex items-center justify-between">
-                          Book Shelf Number
+                        書架番号
                           {getSortIcon("book_shelf_number")}
                         </div>
                       </th>
@@ -551,7 +539,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("book_defn")}
                       >
                         <div className="flex items-center justify-between">
-                          Label
+                        ラベル
                           {getSortIcon("book_defn")}
                         </div>
                       </th>
@@ -561,7 +549,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("location_code")}
                       >
                         <div className="flex items-center justify-between">
-                          Location Code
+                        場所コード
                           {getSortIcon("location_code")}
                         </div>
                       </th>
@@ -571,7 +559,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("start_character")}
                       >
                         <div className="flex items-center justify-between">
-                          Start Character
+                        開始文字
                           {getSortIcon("start_character")}
                         </div>
                       </th>
@@ -581,7 +569,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("start_number")}
                       >
                         <div className="flex items-center justify-between">
-                          Start Number
+                        開始番号
                           {getSortIcon("start_number")}
                         </div>
                       </th>
@@ -591,7 +579,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("stop_character")}
                       >
                         <div className="flex items-center justify-between">
-                          Stop Character
+                        終了文字
                           {getSortIcon("stop_character")}
                         </div>
                       </th>
@@ -601,7 +589,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("stop_number")}
                       >
                         <div className="flex items-center justify-between">
-                          Stop Number
+                        終了番号
                           {getSortIcon("stop_number")}
                         </div>
                       </th>
@@ -611,7 +599,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("prefix")}
                       >
                         <div className="flex items-center justify-between">
-                          Prefix
+                        接頭辞
                           {getSortIcon("prefix")}
                         </div>
                       </th>
@@ -621,7 +609,7 @@ const EditCallNumber = () => {
                         onClick={() => handleSort("suffix")}
                       >
                         <div className="flex items-center justify-between">
-                          Suffix
+                        接尾辞
                           {getSortIcon("suffix")}
                         </div>
                       </th>
@@ -629,7 +617,7 @@ const EditCallNumber = () => {
                         scope="col"
                         className="px-6 py-3 text-right text-sm font-medium text-gray-600"
                       >
-                        Actions
+                        アクション​
                       </th>
                     </tr>
                   </thead>
@@ -785,13 +773,13 @@ const EditCallNumber = () => {
                                 disabled={loading}
                                 className="text-green-600 hover:text-green-900 px-3 py-1 border border-green-600 rounded-md hover:bg-green-50 disabled:opacity-50"
                               >
-                                {loading ? "Saving..." : "Save"}
+                                {loading ? " 保存中..." : "保存"}
                               </button>
                               <button
                                 onClick={handleCancel}
                                 className="text-gray-500 hover:text-gray-700 px-3 py-1 border border-gray-500 rounded-md hover:bg-gray-50"
                               >
-                                Cancel
+                                キャンセル
                               </button>
                             </div>
                           ) : (
@@ -800,7 +788,7 @@ const EditCallNumber = () => {
                                 onClick={() => handleEdit(row)}
                                 className="text-blue-600 hover:text-blue-900 px-3 py-1 border border-blue-600 rounded-md hover:bg-blue-50"
                               >
-                                Edit
+                               編集
                               </button>
                               <button
                                 onClick={() => handleDelete(row.id)}
@@ -818,7 +806,7 @@ const EditCallNumber = () => {
               </div>
               {sortedAndFilteredData.length === 0 && !loading && (
                 <div className="text-center py-8 text-gray-500">
-                  No call numbers found. Click "Add Call Number" to create one.
+                 コールナンバーが見つかりません。「コールナンバーを追加」をクリックして作成してください。
                 </div>
               )}
             </div>

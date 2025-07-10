@@ -65,7 +65,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredItems, setFilteredItems] = useState([]);
-  const [openDropdown, setOpenDropdown] = useState("Real Time Data");
+  const [openDropdown, setOpenDropdown] = useState("リアルタイムデータ");  
   const [user, setUser] = useState({
     username: "John Doe",
     email: "john.doe@example.com",
@@ -171,11 +171,11 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
   const updateMenuItems = (role) => {
     const updatedMenu = [
       {
-        name: "Real Time Data",
+        name: "リアルタイムデータ",
         alwaysOpen: true,
         children: [
           {
-            name: "3D Floor Maps",
+            name: "フロアプランダッシュボード​",
             path: "/dashboard",
             icon: (
               <svg
@@ -195,19 +195,19 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
             ),
           },
           {
-            name: "Door Sensor Status",
+            name: "非常用ドアの状況​​",
             path: "/security-view",
             icon: <DoorOpen size={21} />,
           },
-          { name: "Air Quality", path: "/iaq", icon: <WindIcon size={21} /> },
-          { name: "Water Leakage", path: "/leakage", icon: <Droplets size={20} /> },
+          { name: "環境ウェルネス​​", path: "/iaq", icon: <WindIcon size={21} /> },
+          { name: "水漏れ​", path: "/leakage", icon: <Droplets size={20} /> },
         ],
       },
       {
-        name: "History & Trends",
+        name: "歴史とトレンド​",
         children: [
           {
-            name: "Analytics",
+            name: "分析",
             path: "/analytics",
             icon: <ChartSpline size={21} />,
           },
@@ -216,10 +216,10 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
       },
 
       {
-        name: "Manage Spaces",
+        name: "スペースの管理​",
         children: [
           {
-            name: "Edit Space Details",
+            name: "スペース詳細を編集",
             path: "/editspaces",
             icon: (
               <svg
@@ -238,22 +238,22 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
             ),
           },
           {
-            name: "Edit Call Number",
+            name: "コール番号を編集",
             path: "/callnumber",
             icon: <SquarePen size={21} />,
           },
           {
-            name: "Edit Desk Logic",
+            name: "デスクロジックを編集",
             path: "/desk-logic",
             icon: <SquarePen size={21} />,
           },
           {
-            name: "Edit Facilities",
+            name: "設備を編集",
             path: "/facility",
             icon: <MapPinCheck size={21} />,
           },
           {
-            name: "Edit Floor Plans",
+            name: "フロアプランを編集",
             path: "/editor",
             icon: (
               <img
@@ -277,10 +277,10 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
       // ],
       // },
       {
-        name: "Settings",
+        name: "設定​",
         children: [
           {
-            name: "Manage Devices",
+            name: "デバイスの管理",
             path: "/devices",
             icon: <CpuIcon className="w-5 h-5" />,
           },
@@ -288,7 +288,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
           ...(role === "Admin"
             ? [
                 {
-                  name: "Manage Users",
+                  name: "ユーザーの管理",
                   path: "/users",
                   icon: (
                     <svg
@@ -331,7 +331,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
   useEffect(() => {
     if (searchQuery.trim() === "") {
       setFilteredItems(menuItems);
-      setOpenDropdown("Real Time Data");
+      setOpenDropdown("リアルタイムデータ");
     } else {
       const filtered = menuItems
         .map((item) => {
@@ -422,9 +422,9 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
       >
         <div className="flex items-center justify-between pt-4 pl-4 pr-4 pb-1">
           <div className="flex">
-            <img src="/_crop.png" alt="LNU Logo" className="h-8 w-8" />
+            <img src="/sp.svg" alt="SP Logo" className="h-8 my-2" />
             <h2 className="text-[20px] pl-2 font-semibold">
-              Lingnan University Library
+              
             </h2>
           </div>
           <button
@@ -440,7 +440,7 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
           <input
             id="search-bar"
             type="text"
-            placeholder="Search"
+            placeholder="検索"
             className="w-[96%] pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -534,11 +534,11 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, logout }) {
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
             <div className="bg-white p-4 rounded-lg shadow-lg text-center w-64">
               <h2 className="text-[16px] font-semibold text-gray-900">
-                Password Reset Sent
+              パスワード再設定リンクを送信しました
               </h2>
               <p className="text-gray-600 text-sm mt-2">
-                A reset link has been sent to <strong>{user.email}</strong>.
-                Please check your inbox.
+              <strong>{user.email}</strong> に再設定用リンクを送信しました。<br />
+              受信トレイをご確認ください。
               </p>
             </div>
           </div>

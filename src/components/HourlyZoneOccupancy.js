@@ -228,7 +228,7 @@ const HourlyZoneOccupancy = ({ selectedDate, selectedZone, selectedFloor }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Hourly Occupancy - {selectedZone}</h2>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">時間単位の占有率​ - {selectedZone}</h2>
       
       {loading ? (
         <div className="flex justify-center items-center h-80">

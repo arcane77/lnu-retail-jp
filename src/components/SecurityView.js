@@ -3,6 +3,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle, Battery, Clock, Wifi } from "lucide-react";
 import Sidebar from "./Sidebar";
+import Header from "./Header";
 
 // Mapping between MDR IDs and exit door IDs
 const mdrToExitMapping = {
@@ -121,7 +122,7 @@ const SensorCard = ({ sensor, floor }) => {
         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
           isOpen ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
         }`}>
-          {isOpen ? 'OPEN' : 'CLOSED'}
+          {isOpen ? '開け​' : 'クローズド​'}
         </span>
       </div>
 
@@ -149,7 +150,7 @@ const SensorCard = ({ sensor, floor }) => {
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-600 flex items-center">
             <Battery size={12} className="mr-1" />
-            Battery
+            電池​
           </span>
           <span className={`text-xs font-medium ${
             sensor.battery && sensor.battery < 20 ? 'text-red-600' : 'text-gray-800'
@@ -162,7 +163,7 @@ const SensorCard = ({ sensor, floor }) => {
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-600 flex items-center">
             <Clock size={12} className="mr-1" />
-            Updated
+            更新​
           </span>
           <span className="text-xs font-medium text-gray-800">
             {sensor.lastUpdated ? sensor.lastUpdated.split(' ').pop() : 'N/A'}
@@ -175,7 +176,7 @@ const SensorCard = ({ sensor, floor }) => {
         <div className="mt-3 pt-2 border-t border-red-200">
           <div className="flex items-center justify-center">
             <span className="text-xs text-red-600 font-medium">
-              Opened at: {sensor.lastUpdated ? sensor.lastUpdated.split(' ').pop() : 'N/A'}
+            開場時間: {sensor.lastUpdated ? sensor.lastUpdated.split(' ').pop() : 'N/A'}
             </span>
           </div>
         </div>
@@ -444,12 +445,12 @@ const SecurityView = () => {
   // Format the emergency message based on active emergencies
   const getEmergencyMessage = () => {
     if (activeEmergencies.length === 0) {
-      return "All emergency doors are closed";
+      return "すべての非常扉は閉まっています";
     } else if (activeEmergencies.length === 1) {
       const emergency = activeEmergencies[0];
-      return `Emergency door ${emergency.door} on ${emergency.floor} is opened`;
+      return `${emergency.floor}の非常扉 ${emergency.door} が開かれています`;
     } else {
-      return `${activeEmergencies.length} emergency doors are opened`;
+      return `${activeEmergencies.length} 非常扉が開いています`;
     }
   };
 
@@ -460,30 +461,17 @@ const SecurityView = () => {
         setIsSidebarOpen={setIsSidebarOpen}
         logout={logout}
       />
-      <header className="bg-white shadow-md h-14 lg:h-20 xl:h-24 fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       <div className="min-h-screen mt-12 sm:mt-12 lg:mt-24 bg-gray-100 p-8">
         <div className="flex justify-between md:items-start items-center mb-6">
           <h1 className="lg:text-3xl md:text-2xl text-xl font-bold text-gray-800">
-            Door Sensor Status
+          非常用ドアの状況​
           </h1>
           <div className="text-right">
             <div className="md:text-lg font-medium text-gray-700">
@@ -507,7 +495,7 @@ const SecurityView = () => {
           data[floor].every((door) => door.lastUpdated === null)
         ) ? (
           <div className="flex justify-center items-center h-64">
-            <p className="text-gray-600">Loading door status data...</p>
+            <p className="text-gray-600">ドアのステータスデータを読み込み中です...</p>
           </div>
         ) : (
           <div className="flex flex-col gap-8">
@@ -534,7 +522,7 @@ const SecurityView = () => {
               </p>
 
               <p className="text-sm text-gray-500 mb-4">
-                Last updated: {lastUpdateTime}
+              最終更新: {lastUpdateTime}
               </p>
 
               {/* Emergency doors table and overview */}
@@ -545,9 +533,9 @@ const SecurityView = () => {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-200">
-                            <th className="px-3 py-2">Door ID</th>
-                            <th className="px-3 py-2">Floor</th>
-                            <th className="px-3 py-2">Last Updated</th>
+                            <th className="px-3 py-2">ID別​</th>
+                            <th className="px-3 py-2">床​</th>
+                            <th className="px-3 py-2">最後の更新​</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -572,13 +560,13 @@ const SecurityView = () => {
                     </div>
                   ) : (
                     <div className="text-center text-green-600 mb-4">
-                      <p>All emergency doors are securely closed.</p>
+                      <p>すべての非常口はしっかり閉まっています.</p>
                     </div>
                   )}
                 </div>
 
                 <div className="w-full lg:w-1/3 lg:-mt-8">
-                  <h3 className="font-semibold text-gray-700 mb-2">Overview</h3>
+                  <h3 className="font-semibold text-gray-700 mb-2">概要​</h3>
                   <div className="grid grid-cols-2 lg:grid-cols-2 gap-2">
                     {Object.entries(data).map(([floor, doors]) => {
                       const openDoorsCount = doors.filter(
@@ -630,7 +618,7 @@ const SecurityView = () => {
                       ? "text-green-700" 
                       : "text-red-700"
                   }`}>
-                    PIR Sensor Status
+                    PIR センサーの状態​
                   </p>
                   <p className={`text-[16px] font-medium ${
                     pirData.status === "normal" 
@@ -638,12 +626,12 @@ const SecurityView = () => {
                       : "text-red-600"
                   }`}>
                     {pirData.status === "normal" 
-                      ? "No motion detected" 
-                      : `Motion detected! (${pirData.status})`
+                      ? "モーションが検出されませんでした​" 
+                      : `動きを検出! (${pirData.status})`
                     }
                   </p>
                   <p className="text-xs font-semibold text-gray-500 mt-1">
-                    Battery: {pirData.battery || "Unknown"}% | Last updated: {pirData.lastChecked || "Unknown"}
+                  電池​: {pirData.battery || "Unknown"}% | 最終更新: {pirData.lastChecked || "Unknown"}
                   </p>
                 </div>
               </div>
@@ -654,7 +642,7 @@ const SecurityView = () => {
               {Object.entries(data).map(([floor, sensors]) => (
                 <div key={floor} className="bg-white rounded-xl shadow-lg p-6">
                   <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-                    Floor {floor}
+                  床​ {floor}
                   </h2>
                   
                   <div className="flex flex-col lg:flex-row gap-8 items-start">

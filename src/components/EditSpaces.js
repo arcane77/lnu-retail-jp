@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import Sidebar from "./Sidebar";
 import axios from "axios";
+import Header from "./Header";
 
 const EditSpaces = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -219,34 +220,34 @@ const EditSpaces = () => {
       const secondThreshold = parseInt(newSecondThreshold, 10);
 
       if (isNaN(absoluteCapacity) || absoluteCapacity < 1) {
-        setError("Absolute capacity must be a positive number");
+        setError("絶対収容人数は正の数である必要があります。");
         return;
       }
 
       if (isNaN(functionalCapacity) || functionalCapacity < 1) {
-        setError("Functional capacity must be a positive number");
+        setError("機能的収容人数は正の数である必要があります。");
         return;
       }
 
       if (!newZoneName.trim()) {
-        setError("Zone name cannot be empty");
+        setError("ゾーン名を空欄にすることはできません。");
         return;
       }
 
       // Validate thresholds
       if (isNaN(firstThreshold)) {
-        setError("Moderate threshold must be a number");
+        setError("中程度のしきい値は数値である必要があります。");
         return;
       }
 
       if (isNaN(secondThreshold)) {
-        setError("High threshold must be a number");
+        setError("高レベルのしきい値は数値である必要があります。");
         return;
       }
 
       if (firstThreshold >= secondThreshold) {
         setError(
-          "Moderate threshold (amber) must be lower than high threshold (red)"
+          "中程度のしきい値（アンバー）は高レベルのしきい値（レッド）より小さくなければなりません。"
         );
         return;
       }
@@ -396,32 +397,19 @@ const EditSpaces = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-28 xl:pt-32 px-4 md:px-8 pb-10">
         <div className="max-w-9xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl md:text-3xl font-semibold text-gray-800">
-              Edit Space Capacities
+            スペース容量の編集​
             </h1>
           </div>
 
@@ -448,12 +436,12 @@ const EditSpaces = () => {
               {/* Building Name Edit Section - Add this above the floors listing */}
               <div className="mb-8 bg-white border border-[#E2E2E4] custom-shadow rounded-lg overflow-hidden">
                 <h2 className="px-6 py-4 bg-gray-50 text-xl font-medium text-gray-800">
-                  Building Information
+                建物情報​
                 </h2>
                 <div className="p-6 flex items-center justify-between">
                   <div className="flex items-center">
                     <span className="font-medium text-gray-700 mr-3">
-                      Building Name:
+                    建物名:
                     </span>
                     {isEditingBuilding ? (
                       <input
@@ -463,7 +451,7 @@ const EditSpaces = () => {
                         className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
                     ) : (
-                      <span className="text-gray-900">{buildingName}</span>
+                      <span className="text-gray-900">Optimus</span>
                     )}
                   </div>
                   <div>
@@ -473,13 +461,13 @@ const EditSpaces = () => {
                           onClick={handleSaveBuilding}
                           className="text-green-600 hover:text-green-900 px-3 py-1 border border-green-600 rounded-md hover:bg-green-50"
                         >
-                          Save
+                          保存
                         </button>
                         <button
                           onClick={() => setIsEditingBuilding(false)}
                           className="text-gray-500 hover:text-gray-700 px-3 py-1 border border-gray-500 rounded-md hover:bg-gray-50"
                         >
-                          Cancel
+                          キャンセル
                         </button>
                       </div>
                     ) : (
@@ -490,7 +478,7 @@ const EditSpaces = () => {
                         }}
                         className="text-blue-600 hover:text-blue-900 px-3 py-1 border border-blue-600 rounded-md hover:bg-blue-50"
                       >
-                        Edit Building
+                        建物の編集​
                       </button>
                     )}
                   </div>
@@ -499,7 +487,7 @@ const EditSpaces = () => {
               {/* Floors and Zones List */}
               {floors.length === 0 ? (
                 <div className="p-6 text-center text-gray-500 bg-white custom-shadow rounded-lg">
-                  No floors or zones found.
+                 フロアまたはゾーンが見つかりません。
                 </div>
               ) : (
                 <div className="space-y-12">
@@ -509,7 +497,7 @@ const EditSpaces = () => {
                       className="bg-white border border-[#E2E2E4] custom-shadow rounded-lg overflow-hidden"
                     >
                       <h1 className="px-6 py-4 bg-gray-50 text-xl font-medium text-gray-800">
-                        Floor {floor.name}
+                      床 {floor.name}
                       </h1>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
@@ -519,37 +507,37 @@ const EditSpaces = () => {
                                 scope="col"
                                 className="px-6 py-3 text-left text-sm font-medium text-gray-600"
                               >
-                                Zone Name
+                                ゾーン名​
                               </th>
                               <th
                                 scope="col"
                                 className="px-6 py-3 text-left text-sm font-medium text-gray-600"
                               >
-                                Absolute Capacity
+                                管理者ビューの容量​
                               </th>
                               <th
                                 scope="col"
                                 className="px-6 py-3 text-left text-sm font-medium text-gray-600"
                               >
-                                Functional Capacity
+                                パブリックビュー容量​
                               </th>
                               <th
                                 scope="col"
                                 className="px-6 py-3 text-left text-sm font-medium text-gray-600"
                               >
-                                Moderate Threshold % 
+                                適度なスリーホールド​ % 
                               </th>
                               <th
                                 scope="col"
                                 className="px-6 py-3 text-left text-sm font-medium text-gray-600"
                               >
-                                High Threshold %
+                                高いスレホールド​ %
                               </th>
                               <th
                                 scope="col"
                                 className="px-6 py-3 text-right text-sm font-medium text-gray-600"
                               >
-                                Actions
+                                アクション​
                               </th>
                             </tr>
                           </thead>
@@ -655,13 +643,13 @@ const EditSpaces = () => {
                                         onClick={handleSave}
                                         className="text-green-600 hover:text-green-900 px-3 py-1 border border-green-600 rounded-md hover:bg-green-50"
                                       >
-                                        Save
+                                       保存
                                       </button>
                                       <button
                                         onClick={handleCancelEdit}
                                         className="text-gray-500 hover:text-gray-700 px-3 py-1 border border-gray-500 rounded-md hover:bg-gray-50"
                                       >
-                                        Cancel
+                                        キャンセル 
                                       </button>
                                     </div>
                                   ) : (
@@ -679,7 +667,7 @@ const EditSpaces = () => {
                                       }
                                       className="text-blue-600 hover:text-blue-900 px-3 py-1 border border-blue-600 rounded-md hover:bg-blue-50"
                                     >
-                                      Edit
+                                      編集 
                                     </button>
                                   )}
                                 </td>
@@ -689,8 +677,7 @@ const EditSpaces = () => {
                         </table>
                         {/* Add this after the table */}
                         <div className="px-6 py-3 text-sm text-gray-600 italic">
-                          Note: Low Threshold is automatically set when
-                          the occupancy is below the Moderate Threshold value.
+                          注: 低スレホールドは、占有率が中程度のスレホールド値を下回ると自動的に設定されます​
                         </div>
                       </div>
                     </div>

@@ -306,7 +306,7 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Peak Occupancy
+      ピーク時の稼働率​
         {/* {peakData.isLivePeak && (
           <span className="ml-2 text-sm font-normal text-red-500">
             (Live Peak)
@@ -361,7 +361,7 @@ const PeakFloorDaily = ({ selectedFloor, selectedDate }) => {
               {Math.round(peakData.peakOccupancy)}
             </p>
             <p className="text-gray-600">
-              {peakData.isLivePeak ? "Peak Occupancy" : `Peak Occupancy (${formatHour(peakData.peakHour)})`}
+              {peakData.isLivePeak ? "ピーク時の稼働率​" : `ピーク時の稼働率​ (${formatHour(peakData.peakHour)})`}
             </p>
             {!peakData.isLivePeak && hourlyPeakData[selectedFloor]?.peakZone && (
               <p className="text-sm text-gray-500 mt-1">

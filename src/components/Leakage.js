@@ -3,6 +3,7 @@ import { Droplet, Thermometer, Volume2, VolumeX } from "lucide-react";
 import { useAuth0 } from "@auth0/auth0-react";
 
 import Sidebar from "./Sidebar";
+import Header from "./Header";
 
 const Leakage = () => {
   const [editingIndex, setEditingIndex] = useState(null);
@@ -19,6 +20,7 @@ const Leakage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [acknowledgedSensors, setAcknowledgedSensors] = useState([]);
   const [deviceLocations, setDeviceLocations] = useState({});
+  const [leakingSensors, setLeakingSensors] = useState({}); // Track which sensors are leaking and when they started
   const [currentUser, setCurrentUser] = useState({
     username: "Unknown User",
     email: "unknown@email.com",
@@ -48,6 +50,20 @@ const Leakage = () => {
             locationMapping[device.device_id] = device.location;
           }
         });
+        
+        // Add fallback locations for sensors not in API
+        const fallbackLocations = [
+          "Basement Level 1", "Basement Level 2", "Ground Floor", "First Floor", 
+          "Second Floor", "Roof Top", "Mechanical Room"
+        ];
+        
+        // Generate fallback data for WL sensors not in API
+        for (let i = 1; i <= 7; i++) {
+          const deviceId = `WL-${i.toString().padStart(2, '0')}`;
+          if (!locationMapping[deviceId]) {
+            locationMapping[deviceId] = fallbackLocations[i - 1] || `Area ${i}`;
+          }
+        }
 
         setDeviceLocations(locationMapping);
       } catch (err) {
@@ -59,14 +75,37 @@ const Leakage = () => {
   }, []);
 
   useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-    if (storedUser) {
-      setCurrentUser({
-        username: storedUser.username || "Unknown User",
-        email: storedUser.email || "unknown@email.com",
-      });
-    }
+    const fetchUserFromStorage = () => {
+      const storedUser = JSON.parse(localStorage.getItem("user"));
+      console.log("Stored user from localStorage:", storedUser); // Debug log
+      
+      if (storedUser) {
+        setCurrentUser({
+          username: storedUser.username || "Unknown User",
+          email: storedUser.email || "unknown@email.com",
+        });
+        console.log("Set current user to:", storedUser.username); // Debug log
+      }
+    };
+  
+    // Fetch immediately
+    fetchUserFromStorage();
+  
+    // Listen for localStorage changes (when sidebar updates user data)
+    window.addEventListener('storage', fetchUserFromStorage);
+    
+    // Also listen for focus events (when switching tabs)
+    window.addEventListener('focus', fetchUserFromStorage);
+  
+    return () => {
+      window.removeEventListener('storage', fetchUserFromStorage);
+      window.removeEventListener('focus', fetchUserFromStorage);
+    };
   }, []);
+
+  useEffect(() => {
+    console.log("Current user in Leakage component:", currentUser);
+  }, [currentUser]);
 
   // Function to fetch acknowledgment data
   const fetchAckData = async () => {
@@ -100,68 +139,104 @@ const Leakage = () => {
       if (sensorData.length === 0) {
         setLoading(true);
       }
-      const response = await fetch("https://optimusc.flowfuse.cloud/wl");
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-
+  
+      // Generate fake sensor data for WL-01 to WL-07
+      const generateFakeSensorData = () => {
+        const sensors = {};
+        const now = new Date();
+        
+        // Remove expired leaks (older than 2 minutes)
+        const updatedLeakingSensors = { ...leakingSensors };
+        Object.keys(updatedLeakingSensors).forEach(sensorId => {
+          const leakStartTime = new Date(updatedLeakingSensors[sensorId]);
+          const timeDiff = (now - leakStartTime) / 1000 / 60; // minutes
+          if (timeDiff >= 2) {
+            delete updatedLeakingSensors[sensorId];
+          }
+        });
+        
+        // If no sensors are leaking and random chance, start a new leak
+        if (Object.keys(updatedLeakingSensors).length === 0 && Math.random() < 0.3) {
+          const randomSensorIndex = Math.floor(Math.random() * 7) + 1;
+          const newLeakingSensor = `WL-${randomSensorIndex.toString().padStart(2, '0')}`;
+          updatedLeakingSensors[newLeakingSensor] = now.toISOString();
+        }
+        
+        // Update state if changed
+        if (JSON.stringify(updatedLeakingSensors) !== JSON.stringify(leakingSensors)) {
+          setLeakingSensors(updatedLeakingSensors);
+        }
+        
+        // Generate sensor data based on current leak state
+        for (let i = 1; i <= 7; i++) {
+          const sensorId = `WL-${i.toString().padStart(2, '0')}`;
+          const isLeaking = updatedLeakingSensors.hasOwnProperty(sensorId);
+          
+          sensors[sensorId] = {
+            leakage_status: isLeaking ? "leakage" : "normal",
+            humidity: (40 + Math.random() * 40).toFixed(1), // 40-80%
+            temperature: (18 + Math.random() * 12).toFixed(1), // 18-30°C
+            battery: Math.floor(60 + Math.random() * 40), // 60-100%
+            timestamp: new Date().toISOString()
+          };
+        }
+        
+        return sensors;
+      };
+  
+      const data = generateFakeSensorData();
+  
       const processedData = Object.keys(data)
         .filter((key) => key.startsWith("WL-"))
         .map((sensorId) => {
           const sensorInfo = data[sensorId];
-
+  
           let status = "Idle";
           let humidity = "N/A";
           let temperature = "N/A";
           let battery = "N/A";
-
+  
           if (sensorInfo) {
             if (sensorInfo.leakage_status) {
-              status =
-                sensorInfo.leakage_status === "normal" ? "Idle" : "Leakage";
+              status = sensorInfo.leakage_status === "normal" ? "Idle" : "Leakage";
             }
-
+  
             if (sensorInfo.humidity !== undefined) {
               humidity = `${sensorInfo.humidity}%`;
             }
-
+  
             if (sensorInfo.temperature !== undefined) {
               temperature = `${sensorInfo.temperature}°C`;
             }
-
+  
             if (sensorInfo.battery !== undefined) {
               battery = `${sensorInfo.battery}%`;
             }
           }
-
+  
           if (acknowledgedSensors.includes(sensorId) && status === "Leakage") {
             status = "Leakage Acknowledged";
           }
-
+  
           let lastUpdated = "N/A";
           if (sensorInfo?.timestamp) {
             const date = new Date(sensorInfo.timestamp);
             lastUpdated = date.toLocaleString();
           }
-
+  
           // Get all ack data for this sensor and find the latest one by leak_time
-          const sensorAckEntries = ackData.filter(
-            (ack) => ack.sensor === sensorId
-          );
+          const sensorAckEntries = ackData.filter((ack) => ack.sensor === sensorId);
           const latestAckData =
             sensorAckEntries.length > 0
               ? sensorAckEntries.sort(
                   (a, b) => new Date(b.leak_time) - new Date(a.leak_time)
                 )[0]
               : null;
-
+  
           let lastAlert = "N/A";
           let lastAcknowledged = "N/A";
           let acknowledgedBy = "N/A";
-
+  
           if (latestAckData) {
             if (latestAckData.leak_time) {
               const alertDate = new Date(latestAckData.leak_time);
@@ -175,7 +250,7 @@ const Leakage = () => {
               acknowledgedBy = latestAckData.userName;
             }
           }
-
+  
           return {
             id: sensorId,
             status: status,
@@ -189,12 +264,12 @@ const Leakage = () => {
             acknowledgedBy: acknowledgedBy,
           };
         });
-
+  
       setSensorData(processedData);
       setLoading(false);
       setLastUpdateTime(new Date().toLocaleTimeString());
     } catch (err) {
-      console.error("Error fetching sensor data:", err);
+      console.error("Error generating sensor data:", err);
       setError(err.message);
       setLoading(false);
     }
@@ -206,36 +281,23 @@ const Leakage = () => {
       if (leakData.length === 0) {
         setLeakLoading(true);
       }
-
-      const response = await fetch(
-        "https://njs-01.optimuslab.space/lnu-footfall/floor-zone/leaks"
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Leak API request failed with status ${response.status}`
-        );
-      }
-
-      const data = await response.json();
-
-      const mappedLeaks = Array.isArray(data)
-  ? data.map((leak) => {
-      return {
-        id: leak.id,
-        sensorId: leak.sensor || "Unknown",
-        location: deviceLocations[leak.sensor] || "Unknown",
-        status: leak.leakage_status || "Unknown",
-        timestamp: leak.leak_time || new Date().toISOString(),
-      };
-    })
-  : [];
-
-      setLeakData(mappedLeaks);
+  
+      // Simple sync from sensorData
+      const currentLeaks = sensorData
+        .filter(sensor => sensor.status === "Leakage")
+        .map((sensor, index) => ({
+          id: `leak_${index + 1}`,
+          sensorId: sensor.id,
+          location: sensor.location,
+          status: "leakage",
+          timestamp: leakingSensors[sensor.id] || new Date().toISOString(),
+        }));
+  
+      setLeakData(currentLeaks);
       setLeakLoading(false);
-      setLastUpdateTime(new Date().toLocaleTimeString());
+      // Don't update lastUpdateTime here since it's handled by fetchSensorData
     } catch (err) {
-      console.error("Error fetching leak data:", err);
+      console.error("Error generating leak data:", err);
       setLeakError(err.message);
       setLeakLoading(false);
     }
@@ -243,81 +305,70 @@ const Leakage = () => {
 
   const handleAcknowledge = async (deviceId) => {
     try {
-      const userInfo = {
-        userName: currentUser.username,
-        userEmail: currentUser.email,
-      };
-
-      const response = await fetch(
-        `https://lnuwaterleakack-dot-optimus-hk.df.r.appspot.com/acknowledge/${deviceId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(userInfo),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to acknowledge leak with status ${response.status}`
-        );
-      }
-
+      // Find the sensor ID from leakData
       const leakItem = leakData.find((leak) => leak.id === deviceId);
       const sensorId = leakItem ? leakItem.sensorId : null;
-
+      
       if (sensorId) {
+        // Remove from leaking sensors when acknowledged
+        setLeakingSensors(prev => {
+          const updated = { ...prev };
+          delete updated[sensorId];
+          return updated;
+        });
+  
+        const ackTime = new Date().toLocaleString();
+        
         setAcknowledgedSensors((prev) => {
           if (!prev.includes(sensorId)) {
             return [...prev, sensorId];
           }
           return prev;
         });
-
+  
+        // Update sensor data to show acknowledgment info
         setSensorData((prev) =>
           prev.map((sensor) => {
             if (sensor.id === sensorId && sensor.status === "Leakage") {
-              return { ...sensor, status: "Leakage Acknowledged" };
+              return { 
+                ...sensor, 
+                status: "Leakage Acknowledged",
+                lastAcknowledged: ackTime,
+                acknowledgedBy: currentUser.username
+              };
             }
             return sensor;
           })
         );
+  
+        // Remove from leak data (right side alert will disappear)
+        setLeakData((prev) => prev.filter((leak) => leak.id !== deviceId));
       }
-
-      setLeakData((prev) => prev.filter((leak) => leak.id !== deviceId));
-
-      // Refresh acknowledgment data
-      fetchAckData();
     } catch (err) {
       console.error("Error acknowledging leak:", err);
-      alert(`Failed to acknowledge leak: ${err.message}`);
     }
   };
 
-  useEffect(() => {
+ // Single useEffect for sensor data
+useEffect(() => {
+  fetchSensorData();
+  fetchAckData();
+  
+  const sensorInterval = setInterval(fetchSensorData, 120000);
+  const ackInterval = setInterval(fetchAckData, 300000);
+  
+  return () => {
+    clearInterval(sensorInterval);
+    clearInterval(ackInterval);
+  };
+}, [deviceLocations, ackData]);
+
+// Auto-sync leak data whenever sensor data changes
+useEffect(() => {
+  if (sensorData.length > 0) {
     fetchLeakData();
-    fetchAckData();
-
-    const leakInterval = setInterval(fetchLeakData, 300000);
-    const ackInterval = setInterval(fetchAckData, 300000);
-
-    return () => {
-      clearInterval(leakInterval);
-      clearInterval(ackInterval);
-    };
-  }, [deviceLocations]);
-
-  // Separate useEffect for sensor data that depends on ackData
-  useEffect(() => {
-    fetchSensorData();
-    const sensorInterval = setInterval(fetchSensorData, 30000);
-
-    return () => {
-      clearInterval(sensorInterval);
-    };
-  }, [deviceLocations, ackData]);
+  }
+}, [sensorData]);
 
   const getPast7DaysAlerts = () => {
   const sevenDaysAgo = new Date();
@@ -407,41 +458,27 @@ const Leakage = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
-
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
       <div className="min-h-screen mt-12 sm:mt-12 lg:mt-24 bg-gray-100 p-8">
         <h1 className="md:text-2xl text-xl font-semibold text-gray-800 mb-6">
-          Leakages
+        水漏れ​
         </h1>
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            <p>Error fetching sensor data: {error}</p>
-            <p>Some sensors may display default values.</p>
+            <p>センサーデータの取得エラー: {error}</p>
+            <p>部のセンサーは初期値を表示している可能性があります.</p>
           </div>
         )}
 
         {loading && sensorData.length === 0 ? (
           <div className="flex justify-center items-center h-64">
-            <p className="text-gray-600">Loading sensor data...</p>
+            <p className="text-gray-600">センサーデータを読み込み中です...</p>
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-8">
@@ -464,21 +501,21 @@ const Leakage = () => {
                 }`}
               >
                 {leakData.length > 0
-                  ? "LEAKAGE DETECTED!"
-                  : "No Leakage Detected"}
+                  ? "漏水検出!"
+                  : "漏れは検出されません​"}
               </p>
 
               <p className="text-sm text-gray-500 mt-2">
-                Last updated: {lastUpdateTime}
+              最後の更新​: {lastUpdateTime}
               </p>
 
               {leakLoading ? (
                 <div className="mt-6 text-center">
-                  <p>Loading leak data...</p>
+                  <p>漏水データを読み込み中です...</p>
                 </div>
               ) : leakError ? (
                 <div className="mt-6 text-center text-red-500">
-                  <p>Error loading leak data: {leakError}</p>
+                  <p>漏水データの読み込みエラー: {leakError}</p>
                 </div>
               ) : (
                 <>
@@ -488,10 +525,10 @@ const Leakage = () => {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-200">
-                            <th className="px-2 py-2">Sensor</th>
-                            <th className="px-2 py-2">Location</th>
-                            <th className="px-1 py-2 text-xs">Leak Time</th>
-                            <th className="px-2 py-2">Action</th>
+                            <th className="px-2 py-2">センサー</th>
+                            <th className="px-2 py-2">場所​</th>
+                            <th className="px-1 py-2 text-xs">リークタイム​</th>
+                            <th className="px-2 py-2">操作</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -536,16 +573,16 @@ const Leakage = () => {
                   {/* Past 7 Days Alerts Section - Always Shown */}
                   <div className="mt-5 w-full">
                     <h3 className="text-lg font-semibold text-gray-700 mb-3 text-center">
-                      Past 7 Days' Alerts
+                    過去7日間のアラート
                     </h3>
                     {getPast7DaysAlerts().length > 0 ? (
                       <div className="w-full max-w-[380px] mb-9 h-40 overflow-y-auto border border-gray-300 rounded-md p-2 mx-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="bg-gray-100">
-                              <th className="px-2 py-2">Sensor</th>
-                              <th className="px-2 py-2">Location</th>
-                              <th className="px-2 py-2">Last Alert</th>
+                              <th className="px-2 py-2">センサー​</th>
+                              <th className="px-2 py-2">場所​</th>
+                              <th className="px-2 py-2">最後のアラート​</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -577,7 +614,7 @@ const Leakage = () => {
                       </div>
                     ) : (
                       <div className="text-center text-green-500 text-sm mb-9">
-                        No leaks detected in past 7 days
+                       過去7日間に漏水は検出されませんでした。
                       </div>
                     )}
                   </div>
@@ -610,7 +647,7 @@ const Leakage = () => {
                               sensor.status === "Leakage"
                                 ? "bg-red-100"
                                 : sensor.status === "Leakage Acknowledged"
-                                ? "bg-green-100"
+                                ? "bg-blue-100"
                                 : "bg-blue-100"
                             }`}
                           >
@@ -619,7 +656,7 @@ const Leakage = () => {
                                 sensor.status === "Leakage"
                                   ? "text-red-600"
                                   : sensor.status === "Leakage Acknowledged"
-                                  ? "text-green-600"
+                                  ? "text-blue-600"
                                   : "text-blue-600"
                               }`}
                             />
@@ -637,14 +674,18 @@ const Leakage = () => {
 
                       {/* Status Badge */}
                       <div
-                        className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold mb-4 border ${getStatusColor(
+                        className={`inline-flex items-center px-3 py-1.5 rounded-full ${
+                          sensor.status === "Leakage"
+                            ? "text-[18px] font-bold"
+                            : "text-sm font-semibold"
+                        }  mb-4 border ${getStatusColor(
                           sensor.status
                         )}`}
                       >
                         <div
                           className={`w-2 h-2 rounded-full mr-2 ${
                             sensor.status === "Leakage"
-                              ? "bg-red-500"
+                              ? "bg-red-500 animate-pulse"
                               : sensor.status === "Leakage Acknowledged"
                               ? "bg-green-500"
                               : "bg-green-500"
@@ -658,7 +699,7 @@ const Leakage = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <div className="bg-gray-50 rounded-lg p-3">
                             <p className="text-xs text-gray-500 font-medium mb-1">
-                              LAST UPDATED
+                            最後の更新​
                             </p>
                             <p className="text-xs text-gray-800 font-medium">
                               {sensor.lastUpdated}
@@ -667,7 +708,7 @@ const Leakage = () => {
 
                           <div className="bg-gray-50 rounded-lg p-3">
                             <p className="text-xs text-gray-500 font-medium mb-1">
-                              LAST ALERT
+                            最後のアラート​
                             </p>
                             <p className="text-xs text-gray-800 font-medium">
                               {sensor.lastAlert}
@@ -677,13 +718,13 @@ const Leakage = () => {
 
                         <div className="bg-gray-50 rounded-lg p-3">
                           <p className="text-xs text-gray-500 font-medium mb-1">
-                            LAST ACKNOWLEDGED
+                          最終確認者
                           </p>
                           <p className="text-xs text-gray-800 font-medium">
                             {sensor.lastAcknowledged}
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            by {sensor.acknowledgedBy}
+                          <p className="text-xs text-gray-500 mt-1">
+                             {sensor.acknowledgedBy}
                           </p>
                         </div>
                       </div>

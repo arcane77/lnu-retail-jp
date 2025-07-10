@@ -63,7 +63,7 @@ const HourlyBuildingOccupancy = ({ selectedDate }) => {
         }
       } catch (err) {
         console.error('Error fetching hourly data:', err);
-        setError('Failed to fetch hourly data. Please try again later.');
+        setError('時間別データの取得に失敗しました。もう一度お試しください。');
       } finally {
         setLoading(false);
       }
@@ -158,11 +158,11 @@ const HourlyBuildingOccupancy = ({ selectedDate }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Hourly Occupancy</h2>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">時間単位の占有率​</h2>
       
       {loading ? (
         <div className="flex justify-center items-center h-80">
-          <p>Loading hourly data...</p>
+          <p>時間別データを読み込み中...</p>
         </div>
       ) : error ? (
         <div className="text-red-500 p-4 text-center">
@@ -170,7 +170,7 @@ const HourlyBuildingOccupancy = ({ selectedDate }) => {
         </div>
       ) : hourlyData.length === 0 ? (
         <div className="text-gray-500 p-4 text-center">
-          No main entrance data available for the selected date.
+         選択した日付のメインエントランスデータがありません。
         </div>
       ) : (
         <div className="h-80">
@@ -183,7 +183,7 @@ const HourlyBuildingOccupancy = ({ selectedDate }) => {
               <XAxis 
                 dataKey="hktFormatted" 
                 label={{ 
-                  value: 'Hour of Day (HKT)', 
+                  value: '時間帯(HKT)​', 
                   position: 'insideBottom', 
                   offset: -10 
                 }}
@@ -191,7 +191,7 @@ const HourlyBuildingOccupancy = ({ selectedDate }) => {
               />
               <YAxis 
                 label={{ 
-                  value: 'Traffic Count (People)', 
+                  value: 'トラフィック数 (人)​', 
                   angle: -90, 
                   position: 'insideLeft',
                   style: { textAnchor: 'middle' }
@@ -208,7 +208,7 @@ const HourlyBuildingOccupancy = ({ selectedDate }) => {
               <Line
                 type="monotone"
                 dataKey="mainEntrance"
-                name="Main Entrance"
+                name="玄関​"
                 stroke={MAIN_ENTRANCE_COLOR}
                 strokeWidth={2}
                 connectNulls={true}

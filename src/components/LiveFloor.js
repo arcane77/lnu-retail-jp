@@ -159,7 +159,7 @@ const LiveFloor = ({ selectedFloor }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Live Occupancy
+      ライブ占有率​
       </h2>
       {loading ? (
         <div className="flex justify-center items-center h-48">
@@ -209,7 +209,7 @@ const LiveFloor = ({ selectedFloor }) => {
             <p className="text-4xl font-bold text-orange-500">
               {Math.round(selectedFloorLiveData.totalOccupancy)}
             </p>
-            <p className="text-gray-600">Real-time Occupancy</p>
+            <p className="text-gray-600">リアルタイム占有状況</p>
           </div>
         </div>
       )}

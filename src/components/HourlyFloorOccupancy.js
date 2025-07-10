@@ -319,7 +319,7 @@ const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Hourly Occupancy</h2>
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">時間単位の占有率​</h2>
       
       {loading ? (
         <div className="flex justify-center items-center h-80">
@@ -344,7 +344,7 @@ const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
               <XAxis 
                 dataKey="hktFormatted" 
                 label={{ 
-                  value: 'Hour of Day', 
+                  value: '時間帯', 
                   position: 'insideBottom', 
                   offset: -10 
                 }}
@@ -352,7 +352,7 @@ const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
               />
               <YAxis 
                 label={{ 
-                  value: 'Occupancy', 
+                  value: '占有', 
                   angle: -90, 
                   position: 'insideLeft',
                   style: { textAnchor: 'middle' }
@@ -417,7 +417,7 @@ const HourlyFloorOccupancy = ({ selectedDate, selectedFloor }) => {
               )}
               
               {/* Reference line at max capacity */}
-              <ReferenceLine y={50} stroke="#777" strokeDasharray="3 3" label="Max Capacity (50)" />
+              <ReferenceLine y={50} stroke="#777" strokeDasharray="3 3" label="最大容量 " />
             </LineChart>
           </ResponsiveContainer>
         </div>

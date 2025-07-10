@@ -1,4 +1,4 @@
-service: admin
+service: retail
 runtime: nodejs20
 instance_class: F2
 env: standard

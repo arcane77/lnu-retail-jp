@@ -317,7 +317,7 @@ const AvgFloorDaily = ({ selectedFloor, selectedDate, reportType }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Average Occupancy
+      平均稼働率​
       </h2>
       {loading ? (
         <div className="flex justify-center items-center h-48">
@@ -363,7 +363,7 @@ const AvgFloorDaily = ({ selectedFloor, selectedDate, reportType }) => {
             <p className="text-4xl font-bold text-[#82C0CC]">
               {avgData.avgOccupancyPercentage.toFixed(2)}%
             </p>
-            <p className="text-gray-600">Average Occupancy</p>
+            <p className="text-gray-600">平均稼働率​</p>
           </div>
         </div>
       )}

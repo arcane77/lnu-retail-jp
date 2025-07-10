@@ -176,8 +176,8 @@ const LiveZone = ({ selectedZone, selectedFloor }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">
-        Live Occupancy
-        {selectedFloor !== "All Floors" && ` - Floor ${selectedFloor}`}
+      ライブ占有率​
+        {selectedFloor !== "All Floors" && ` - 床​ ${selectedFloor}`}
       </h2>
       {loading ? (
         <div className="flex justify-center items-center h-48">

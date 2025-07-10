@@ -6,6 +6,7 @@ import LiveBuilding from "./LiveBuilding";
 import HourlyBuildingOccupancy from "./HourlyBuildingOccupancy";
 import PeakBuildingDaily from "./PeakBuildinDaily";
 import AvgBuildingDaily from "./AvgBuildingDaily";
+import Header from "./Header";
 import {
   PieChart,
   Pie,
@@ -91,8 +92,6 @@ const BuildingAnalytics = () => {
     floorDataMap: {},
     totalMaxCapacity: 0,
   });
-
-  
 
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState("daily");
@@ -183,8 +182,6 @@ const BuildingAnalytics = () => {
 
         // Process API data for regular building stats
         processApiData(response.data);
-
-        
       }
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -193,8 +190,6 @@ const BuildingAnalytics = () => {
       setLoading(false);
     }
   };
-
-  
 
   // Process API data to get building-level metrics (sum of all floors)
   const processApiData = (data) => {
@@ -330,94 +325,174 @@ const BuildingAnalytics = () => {
     }
   }, [startDate, endDate]);
 
+  // Export CSV function
+  const exportToCSV = () => {
+    try {
+      // Prepare data for export
+      let csvData = [];
+
+      if (reportType === "daily") {
+        // For daily reports, we don't typically export trend data
+        // But we can export floor comparison data
+        csvData = floorComparisonData.map((floor) => ({
+          Floor: floorNames[floor.name],
+          "Peak Occupancy": floor.peakOccupancy.toFixed(0),
+          "Average Occupancy (%)": floor.avgOccupancyPercentage.toFixed(0),
+        }));
+      } else {
+        // For weekly/monthly/custom reports, export the trend data
+        csvData = barChartData.map((item) => ({
+          Date: item.date,
+          "Average Occupancy (%)": item.averageOccupancy.toFixed(0),
+          "Peak Occupancy": item.peakOccupancy.toFixed(0),
+        }));
+
+        // Add a separator row and floor comparison data
+        csvData.push({
+          Date: "",
+          "Average Occupancy (%)": "",
+          "Peak Occupancy": "",
+        });
+
+        csvData.push({
+          Date: "FLOOR BREAKDOWN",
+          "Average Occupancy (%)": "",
+          "Peak Occupancy": "",
+        });
+
+        // Add floor comparison data
+        floorComparisonData.forEach((floor) => {
+          csvData.push({
+            Date: floorNames[floor.name],
+            "Average Occupancy (%)": floor.avgOccupancyPercentage.toFixed(0),
+            "Peak Occupancy": floor.peakOccupancy.toFixed(0),
+          });
+        });
+      }
+
+      // Convert to CSV
+      if (csvData.length === 0) {
+        alert("No data available for export");
+        return;
+      }
+
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) => headers.map((header) => row[header]).join(",")),
+      ].join("\n");
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      const { startDate, endDate } = getDateRange();
+      const filename = `Building_Occupancy_${reportType}_${startDate}_to_${endDate}.csv`;
+      link.download = filename;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      alert("Error exporting data. Please try again.");
+    }
+  };
+
   // Process data for the building trend bar chart
   const barChartData = useMemo(() => {
     if (!rawApiData || rawApiData.length === 0) {
       return [];
     }
-  
+
     // Key insight: The way timestamps are keyed in the map is crucial
     // We need to group by DATE, not by full timestamp
-    
+
     // Create a map to store data by DATE (not full timestamp)
     const dailyMap = new Map();
-  
+
     // First, pre-fill the map with all dates in the selected range
     // This ensures we have entries for every day, even if no data exists
     const { startDate, endDate } = getDateRange();
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
-    for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+
+    for (
+      let day = new Date(start);
+      day <= end;
+      day.setDate(day.getDate() + 1)
+    ) {
       const dateStr = formatDate(day);
       dailyMap.set(dateStr, {
         date: dateStr,
         totalOccupancy: 0,
         peakOccupancy: 0,
         totalPercentage: 0,
-        count: 0
+        count: 0,
       });
     }
-  
+
     // Now process the actual data
     rawApiData.forEach((item) => {
       const { zone_name, data: zoneData } = item;
-  
+
       // ONLY include Main-Entrance zone data
       if (zone_name !== "Main-Entrance") {
         return;
       }
-  
+
       // Process each timestamp entry for Main-Entrance
       zoneData.forEach((entry) => {
         const { timestamp, total_occupancy, occupancy_percentage } = entry;
-        
+
         // Extract just the date part for grouping by day
-        const datePart = timestamp.split('T')[0]; // Gets YYYY-MM-DD
-        
+        const datePart = timestamp.split("T")[0]; // Gets YYYY-MM-DD
+
         // Skip if outside our pre-filled date range
         if (!dailyMap.has(datePart)) {
           return;
         }
-  
+
         // Get the entry for this date
         const dateEntry = dailyMap.get(datePart);
-        
+
         // Add to total occupancy and percentage
         dateEntry.totalOccupancy += total_occupancy;
         dateEntry.totalPercentage += occupancy_percentage;
-        
+
         // Update peak if this is higher
         if (total_occupancy > dateEntry.peakOccupancy) {
           dateEntry.peakOccupancy = total_occupancy;
         }
-        
+
         // Count data points for this day
         dateEntry.count += 1;
       });
     });
-  
+
     // Calculate daily averages and convert to array
     const result = Array.from(dailyMap.values()).map((entry) => ({
       date: entry.date,
-      averageOccupancy: entry.count > 0 ? entry.totalPercentage / entry.count : 0,
-      peakOccupancy: entry.peakOccupancy
+      averageOccupancy:
+        entry.count > 0 ? entry.totalPercentage / entry.count : 0,
+      peakOccupancy: entry.peakOccupancy,
     }));
-  
+
     // Sort by date chronologically
     return result.sort((a, b) => a.date.localeCompare(b.date));
   }, [rawApiData, getDateRange]);
-  
+
   // Update the Y-axis max calculation for better scaling
   const maxAvgOccupancy = useMemo(() => {
     if (barChartData.length === 0) return 5; // Default value
-  
+
     const max = Math.max(...barChartData.map((item) => item.averageOccupancy));
     // Round up to nearest 5
     return Math.ceil(max / 5) * 5;
   }, [barChartData]);
-  
-  
 
   // Process data for the floor comparison bar chart
   const floorComparisonData = useMemo(() => {
@@ -443,8 +518,6 @@ const BuildingAnalytics = () => {
     });
   }, [buildingData.floorDataMap]);
 
-  
-
   // Format the date for display on the X-axis
   const formatXAxis = (dateStr) => {
     try {
@@ -464,25 +537,12 @@ const BuildingAnalytics = () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       {/* Main Content */}
       <main className="pt-2 pb-12">
@@ -493,8 +553,8 @@ const BuildingAnalytics = () => {
               <div className="flex flex-col md:flex-row md:items-end">
                 {/* Report Type */}
                 <div className="mb-4 md:mb-0">
-                  <label className="text-sm text-gray-600 mb-1 block">
-                    Report Type
+                  <label className="text-sm font-bold text-gray-600 mb-1 block">
+                  レポートの種類​
                   </label>
                   <div className="flex space-x-2">
                     <button
@@ -505,7 +565,7 @@ const BuildingAnalytics = () => {
                       }`}
                       onClick={() => setReportType("daily")}
                     >
-                      Daily
+                      日毎​
                     </button>
                     <button
                       className={`px-4 py-2 rounded-md ${
@@ -515,7 +575,7 @@ const BuildingAnalytics = () => {
                       }`}
                       onClick={() => setReportType("weekly")}
                     >
-                      Weekly
+                      ウィークリー​
                     </button>
                     <button
                       className={`px-4 py-2 rounded-md ${
@@ -525,7 +585,7 @@ const BuildingAnalytics = () => {
                       }`}
                       onClick={() => setReportType("monthly")}
                     >
-                      Monthly
+                      マンスリー​
                     </button>
                     <button
                       className={`px-4 py-2 rounded-md ${
@@ -535,7 +595,7 @@ const BuildingAnalytics = () => {
                       }`}
                       onClick={() => setReportType("custom")}
                     >
-                      Custom
+                      カスタム​
                     </button>
                   </div>
                 </div>
@@ -547,12 +607,12 @@ const BuildingAnalytics = () => {
                     reportType === "weekly" ||
                     reportType === "monthly") && (
                     <div className="mb-4 md:mb-0">
-                      <label className="text-sm text-gray-600 mb-1 block">
+                      <label className="text-sm font-bold text-gray-600 mb-1 block">
                         {reportType === "daily"
-                          ? "Select Date"
+                          ? "日付を選択​"
                           : reportType === "weekly"
-                          ? "Select Week"
-                          : "Select Month"}
+                          ? "週を選択"
+                          : "月を選択"}
                       </label>
                       <div className="flex items-center relative">
                         <DatePicker
@@ -588,7 +648,7 @@ const BuildingAnalytics = () => {
                     <div className="flex flex-col md:flex-row">
                       <div className="mb-4 md:mb-0 relative">
                         <label className="text-sm text-gray-600 mb-1 block">
-                          Start Date
+                        開始日
                         </label>
                         <div className="relative">
                           <DatePicker
@@ -621,7 +681,7 @@ const BuildingAnalytics = () => {
                       </div>
                       <div className="mb-4 md:mb-0 md:ml-6 relative">
                         <label className="text-sm text-gray-600 mb-1 block">
-                          End Date
+                        終了日
                         </label>
                         <div className="relative">
                           <DatePicker
@@ -658,14 +718,24 @@ const BuildingAnalytics = () => {
                 </div>
               </div>
 
-              {/* Apply Button */}
-              <div className="mt-4 md:mt-0">
+              {/* Buttons Section */}
+              <div className="mt-4 md:mt-0 flex space-x-3">
                 <button
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                   onClick={fetchData}
                 >
-                  Apply
+                 申し込む​
                 </button>
+
+                {/* Export CSV Button - only show for custom */}
+                {reportType === "custom" && (
+                  <button
+                    className="px-4 py-2 rounded-md bg-transparent border-[2px] border-blue-500 text-blue-600 font-medium hover:bg-blue-600 hover:text-white"
+                    onClick={exportToCSV}
+                  >
+                   CSV出力
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -704,7 +774,7 @@ const BuildingAnalytics = () => {
               </svg>{" "}
               {reportType === "daily" && (
                 <>
-                  Showing data for{" "}
+                  次のデータを表示中：{" "}
                   {selectedDate.toLocaleDateString("en-US", {
                     month: "long",
                     day: "numeric",
@@ -714,7 +784,7 @@ const BuildingAnalytics = () => {
               )}
               {reportType === "weekly" && (
                 <>
-                  Showing weekly data:{" "}
+                   週間データを表示中：{" "}
                   {startDate.toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
@@ -729,7 +799,7 @@ const BuildingAnalytics = () => {
               )}
               {reportType === "monthly" && (
                 <>
-                  Showing monthly data:{" "}
+                  月間データを表示中：{" "}
                   {startDate.toLocaleDateString("en-US", {
                     month: "long",
                     year: "numeric",
@@ -738,7 +808,7 @@ const BuildingAnalytics = () => {
               )}
               {reportType === "custom" && (
                 <>
-                  Showing custom date range:{" "}
+                  カスタム日付範囲のデータを表示中：{" "}
                   {startDate.toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
@@ -758,7 +828,7 @@ const BuildingAnalytics = () => {
           {/* Building Data Section */}
           {loading ? (
             <div className="bg-white rounded-lg shadow-md p-8 flex justify-center">
-              <p className="text-lg">Loading data...</p>
+              <p className="text-lg">データを読み込み中.</p>
             </div>
           ) : error ? (
             <div className="bg-white rounded-lg shadow-md p-8">
@@ -768,22 +838,25 @@ const BuildingAnalytics = () => {
             <>
               {/* Metrics Grid */}
               <div
-  className={`grid grid-cols-1 ${
-    reportType === "daily" ? "md:grid-cols-3" : "md:grid-cols-2"
-  } gap-6 mb-6`}
->
-  {/* Live Building Occupancy - Only shown for "daily" report type */}
-  {reportType === "daily" && <LiveBuilding />}
+                className={`grid grid-cols-1 ${
+                  reportType === "daily" ? "md:grid-cols-3" : "md:grid-cols-2"
+                } gap-6 mb-6`}
+              >
+                {/* Live Building Occupancy - Only shown for "daily" report type */}
+                {reportType === "daily" && <LiveBuilding />}
 
-  {/* Peak Building Occupancy Card */}
-  <PeakBuildingDaily
-    selectedDate={selectedDate}
-    reportType={reportType}
-  />
+                {/* Peak Building Occupancy Card */}
+                <PeakBuildingDaily
+                  selectedDate={selectedDate}
+                  reportType={reportType}
+                />
 
-  {/* Average Building Occupancy Card - Using the new component */}
-  <AvgBuildingDaily selectedDate={selectedDate} reportType={reportType} />
-</div>
+                {/* Average Building Occupancy Card - Using the new component */}
+                <AvgBuildingDaily
+                  selectedDate={selectedDate}
+                  reportType={reportType}
+                />
+              </div>
 
               {reportType === "daily" && (
                 <HourlyBuildingOccupancy selectedDate={selectedDate} />
@@ -792,7 +865,7 @@ const BuildingAnalytics = () => {
               {/* Floor Comparison Chart - Kept unchanged as requested */}
               <div className="bg-white rounded-lg shadow-md p-6 mb-6">
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                  Floor Occupancy Overview
+                フロア占有率の概要​
                 </h2>
                 <div className="h-[460px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -817,14 +890,14 @@ const BuildingAnalytics = () => {
                       <Legend />
                       <Bar
                         dataKey="peakOccupancy"
-                        name="Peak Occupancy"
+                        name="ピーク稼働率​"
                         fill="#2463EB"
                         radius={[0, 4, 4, 0]}
                         barSize={30}
                       />
                       <Bar
                         dataKey="avgOccupancyPercentage"
-                        name="Average Occupancy (%)"
+                        name="平均稼働率​ (%)"
                         fill="#82C0CC"
                         radius={[0, 4, 4, 0]}
                         barSize={30}
@@ -836,53 +909,53 @@ const BuildingAnalytics = () => {
 
               {/* Building Trend Chart - Only for Weekly, Monthly, and Custom */}
               {reportType !== "daily" && (
-  <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-    <h2 className="text-lg font-semibold text-gray-800 mb-4">
-      {reportType === "weekly"
-        ? "Weekly"
-        : reportType === "monthly"
-        ? "Monthly"
-        : "Custom"}{" "}
-      Building Occupancy 
-    </h2>
+                <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-4">
+                    {reportType === "weekly"
+                      ? "ウィークリー​"
+                      : reportType === "monthly"
+                      ? "マンスリー​"
+                      : "カスタム​"}{" "}
+                    建物占有
+                  </h2>
 
-    <div className="h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={barChartData}
-          margin={{ top: 20, right: 20, left: 20, bottom: 30 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={formatXAxis}
-            angle={0}
-            textAnchor="end"
-            height={70}
-          />
-          <YAxis
-            label={{
-              value: "Occupancy (%)",
-              angle: -90,
-              position: "insideLeft",
-              style: { textAnchor: "middle" },
-            }}
-            domain={[0, maxAvgOccupancy]}
-          />
-          <Tooltip content={<CustomBarTooltip />} />
-          <Legend />
-          <Bar
-            dataKey="averageOccupancy"
-            name="Building Occupancy %"
-            fill="#2463EB"
-            radius={[4, 4, 0, 0]}
-            barSize={30}
-          />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  </div>
-)}
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={barChartData}
+                        margin={{ top: 20, right: 20, left: 20, bottom: 30 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={formatXAxis}
+                          angle={0}
+                          textAnchor="end"
+                          height={70}
+                        />
+                        <YAxis
+                          label={{
+                            value: "Occupancy (%)",
+                            angle: -90,
+                            position: "insideLeft",
+                            style: { textAnchor: "middle" },
+                          }}
+                          domain={[0, maxAvgOccupancy]}
+                        />
+                        <Tooltip content={<CustomBarTooltip />} />
+                        <Legend />
+                        <Bar
+                          dataKey="averageOccupancy"
+                          name="建物占有 %"
+                          fill="#2463EB"
+                          radius={[4, 4, 0, 0]}
+                          barSize={30}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

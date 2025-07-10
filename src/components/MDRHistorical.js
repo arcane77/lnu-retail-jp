@@ -7,8 +7,43 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
   const [deviceFilter, setDeviceFilter] = useState("all");
 
   useImperativeHandle(ref, () => ({
-    tableData
+    tableData,
+    exportToCSV: () => {
+      const csvContent = generateCSV();
+      downloadCSV(csvContent, `mdr-report-${dateRange.fromDate}-to-${dateRange.toDate}.csv`);
+    }
   }));
+
+  const generateCSV = () => {
+    const headers = ['Device Name', 'Magnet Status', 'Battery (%)', 'Time'];
+    const csvRows = [headers.join(',')];
+    
+    filteredData.forEach(item => {
+      const row = [
+        item.deviceName,
+        item.magnet_status,
+        `${item.battery}%`,
+        formatDateTimeDisplay(item.time)
+      ];
+      csvRows.push(row.map(field => `"${field}"`).join(','));
+    });
+    
+    return csvRows.join('\n');
+  };
+  
+  const downloadCSV = (csvContent, fileName) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   const rowsPerPage = 15;
   const indexOfLastRow = currentPage * rowsPerPage;
@@ -23,6 +58,8 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
 
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
   const currentRows = filteredData.slice(indexOfFirstRow, indexOfLastRow);
+
+  
 
   // Fetch MDR data
   const fetchMDRData = async () => {
@@ -85,6 +122,17 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const translateMagnetStatus = (status) => {
+    switch (status) {
+      case 'open':
+        return '開ける';
+      case 'close':
+        return '閉める';
+      default:
+        return status;
+    }
+  };
   
   // Get tamper status badge color
   const getTamperStatusColor = (status) => {
@@ -113,11 +161,11 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
           <table className="table-auto w-full">
             <thead>
               <tr className="bg-gray-100">
-                <th className="text-center px-4 py-4">Device Name</th>
-                <th className="text-center px-4 py-4">Magnet Status</th>
+                <th className="text-center px-4 py-4">デバイス名​</th>
+                <th className="text-center px-4 py-4">マグネットの状態​</th>
                 {/* <th className="text-center px-4 py-4">Tamper Status</th> */}
-                <th className="text-center px-4 py-4">Battery (%)</th>
-                <th className="text-center px-4 py-4">Time</th>
+                <th className="text-center px-4 py-4">電池​(%)</th>
+                <th className="text-center px-4 py-4">時間​</th>
               </tr>
             </thead>
             <tbody>
@@ -133,7 +181,7 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
                   <td className="text-center px-4 py-3">{item.deviceName}</td>
                   <td className="text-center px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(item.magnet_status)}`}>
-                      {item.magnet_status}
+                    {translateMagnetStatus(item.magnet_status)}
                     </span>
                   </td>
                   {/* <td className="text-center px-4 py-3">
@@ -155,7 +203,7 @@ const MDRHistorical = forwardRef(({ dateRange, reportType }, ref) => {
           </table>
         ) : (
           <div className="text-center py-10">
-            No doors opened for the selected date
+            選択した日に開いたドアはありません
           </div>
         )}
 

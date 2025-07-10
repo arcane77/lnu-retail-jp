@@ -119,9 +119,9 @@ const handleSignUp = async () => {
     <div className="flex flex-col justify-center items-center h-screen bg-gray-100">
       {/* Logo */}
       <img
-        src="/library-logo-final_2024.png"
+        src="/sp.svg"
         alt="Lingnan Library Logo"
-        className="md:w-[540px] sm:w-[480px] w-[340px] h-auto mx-auto mb-14"
+        className="md:w-[330px] sm:w-[280px] w-[240px] h-auto mx-auto mb-14"
       />
   
       {/* Login/Signup Box */}

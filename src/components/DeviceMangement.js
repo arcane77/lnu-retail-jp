@@ -10,6 +10,7 @@ import {
   Search,
   Wind, DoorOpen
 } from "lucide-react";
+import Header from "./Header";
 
 import Sidebar from "./Sidebar";
 
@@ -25,6 +26,18 @@ const DeviceManagement = () => {
   const [activeTab, setActiveTab] = useState(null);
   const [expandedDevice, setExpandedDevice] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+const CATEGORY_TRANSLATIONS = {
+  "Occupancy Sensors": "占有センサー",
+  "IAQ Sensors": "IAQセンサー", 
+  "MDR Sensors": "MDRセンサー",
+  "Water Leakage Sensors": "水漏れセンサー",
+  "Footfall Sensors": "フットフォールセンサー"
+};
+
+const getJapaneseDisplayName = (englishCategory) => {
+  return CATEGORY_TRANSLATIONS[englishCategory] || englishCategory;
+};
 
   const BASE_URL = "https://lnudevices-dot-optimus-hk.df.r.appspot.com";
 
@@ -58,6 +71,7 @@ const DeviceManagement = () => {
       "3F-S-B01", "3F-L-V01", "3F-S-B02", 
       "1F-ME-B02"
     ];
+
     
     // Check occupancy first
     if (occupancyDeviceIds.includes(deviceId)) {
@@ -99,123 +113,148 @@ const DeviceManagement = () => {
     return getNumericPart(a.id) - getNumericPart(b.id);
   };
 
-  // Fetch all devices from API
-  const fetchDevices = async () => {
+  // Fetch Battery Levels from new API
+  const fetchBatteryLevels = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`${BASE_URL}/devices`);
-
+      const response = await fetch("https://optimusc.flowfuse.cloud/api/get-battery-levels");
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw new Error(`Battery Levels API error: ${response.status}`);
       }
-
-      const data = await response.json();
-
-      // Fetch additional sensor data
-      const iaqData = await fetchIAQData();
-      const wlData = await fetchWLData();
-      const mdrData = await fetchMDRData();
-      const footfallData = await fetchFootfallData();
-      const occupancyData = await fetchOccupancyData(); // Fetch occupancy data
-
-      // Create virtual devices for footfall sensors
-      const footfallDevices = Object.keys(footfallData).map(areaId => {
-        return {
-          device_id: areaId,
-          device_type: "Footfall Sensor",
-          location: `${footfallData[areaId].building} ${footfallData[areaId].floor}`,
-          area: footfallData[areaId].zone,
-          last_data_read: new Date().toISOString(),
-          battery: 100
-        };
-      });
-
-      // Combine regular devices with footfall devices
-      const allDevices = [...data, ...footfallDevices];
-
-      // Transform API data to match our component needs
-      const transformedData = allDevices
-        .filter((device) => !EXCLUDED_DEVICE_IDS.includes(device.device_id)) // Filter out excluded devices
-        .map((device) => {
-          const deviceId = device.device_id || "";
-          const deviceType = getDeviceType(deviceId, device.device_type);
-          
-          // Skip devices that don't match any of our specific categories
-          if (!deviceType) return null;
-
-          // Try to find matching sensor data based on device ID
-          let sensorData = null;
-          let lastUpdatedTime = new Date(device.last_data_read || new Date());
-
-          if (deviceType === "IAQ Sensors" && iaqData[deviceId]) {
-            sensorData = iaqData[deviceId];
-            lastUpdatedTime = new Date(sensorData.timestamp);
-          } else if (deviceType === "Water Leakage Sensors") {
-            // Special handling for WL-05, 06, 07
-            if (["WL-05", "WL-06", "WL-07"].includes(deviceId)) {
-              sensorData = { lastUpdated: "N/A" };
-            } else if (wlData[deviceId]) {
-              sensorData = wlData[deviceId];
-              lastUpdatedTime = new Date(sensorData.timestamp) || "N/A";
-            }
-          } else if (deviceType === "MDR Sensors" && mdrData[deviceId]) {
-            sensorData = mdrData[deviceId];
-            lastUpdatedTime = new Date(sensorData.timestamp);
-          } else if (deviceType === "Footfall Sensors" && footfallData[deviceId]) {
-            // Handle Footfall sensor data
-            sensorData = footfallData[deviceId];
-            lastUpdatedTime = new Date(sensorData.timestamp);
-          } else if (deviceType === "Occupancy Sensors" && occupancyData[deviceId]) {
-            // Handle Occupancy sensor data
-            sensorData = occupancyData[deviceId];
-            lastUpdatedTime = new Date(sensorData.timestamp || device.last_data_read);
-          }
-
-          return {
-            id: deviceId,
-            type: device.device_type || "",
-            category: deviceType,
-            location: device.location || "",
-            area: device.area || "",
-            lastUpdated:
-              sensorData && sensorData.lastUpdated === "N/A"
-                ? "N/A"
-                : new Date(lastUpdatedTime).toLocaleString(),
-            battery: sensorData
-              ? sensorData.battery || device.battery || 100
-              : device.battery || 100,
-            lastActive:
-              sensorData && sensorData.lastUpdated === "N/A"
-                ? null
-                : lastUpdatedTime,
-            sensorData: sensorData || null, // Store additional sensor data
-            isPoweredByPOE: deviceType === "Occupancy Sensors" || deviceType === "Footfall Sensors"
-          };
-        })
-        .filter(device => device !== null) // Filter out null devices (those without a specific category)
-        .sort(compareDevices); // Sort the devices
-
-      setDevices(transformedData);
-
-      // Set initial active tab if there are devices
-      if (transformedData.length > 0) {
-        const categories = [
-          ...new Set(transformedData.map((device) => device.category)),
-        ];
-        if (!activeTab && categories.length > 0) {
-          setActiveTab(categories[0]);
-        }
-      }
-
-      setError(null);
+      return await response.json();
     } catch (err) {
-      console.error("Error fetching devices:", err);
-      setError("Failed to load devices. Please try again later.");
-    } finally {
-      setLoading(false);
+      console.error("Error fetching Battery Levels data:", err);
+      return {};
     }
   };
+    
 
+  // Fetch all devices from API
+const fetchDevices = async () => {
+  try {
+    setLoading(true);
+    const response = await fetch(`${BASE_URL}/devices`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Fetch additional sensor data
+    const iaqData = await fetchIAQData();
+    const wlData = await fetchWLData();
+    const mdrData = await fetchMDRData();
+    const footfallData = await fetchFootfallData();
+    const occupancyData = await fetchOccupancyData();
+    const batteryLevels = await fetchBatteryLevels(); // Fetch battery levels
+
+    // Create virtual devices for footfall sensors
+    const footfallDevices = Object.keys(footfallData).map(areaId => {
+      return {
+        device_id: areaId,
+        device_type: "Footfall Sensor",
+        location: `${footfallData[areaId].building} ${footfallData[areaId].floor}`,
+        area: footfallData[areaId].zone,
+        last_data_read: new Date().toISOString(),
+        battery: batteryLevels[areaId] ? batteryLevels[areaId].battery : 100
+      };
+    });
+
+    // Combine regular devices with footfall devices
+    const allDevices = [...data, ...footfallDevices];
+
+    // Transform API data to match our component needs
+    const transformedData = allDevices
+      .filter((device) => !EXCLUDED_DEVICE_IDS.includes(device.device_id)) // Filter out excluded devices
+      .map((device) => {
+        const deviceId = device.device_id || "";
+        const deviceType = getDeviceType(deviceId, device.device_type);
+        
+        // Skip devices that don't match any of our specific categories
+        if (!deviceType) return null;
+
+        // Try to find matching sensor data based on device ID
+        let sensorData = null;
+        let lastUpdatedTime = new Date(device.last_data_read || new Date());
+
+        // Determine if device is POE powered or battery powered
+        const hasBatteryLevel = batteryLevels[deviceId];
+        const actualBatteryLevel = hasBatteryLevel ? batteryLevels[deviceId].battery : null;
+
+        // Update isPoweredByPOE logic
+        const isPoweredByPOE = !hasBatteryLevel && (
+          deviceType === "Occupancy Sensors" || 
+          (deviceType === "Footfall Sensors" && !deviceId.includes("-B"))
+        );
+
+        if (deviceType === "IAQ Sensors" && iaqData[deviceId]) {
+          sensorData = iaqData[deviceId];
+          lastUpdatedTime = new Date(sensorData.timestamp);
+        } else if (deviceType === "Water Leakage Sensors") {
+          // Special handling for WL-05, 06, 07
+          if (["WL-05", "WL-06", "WL-07"].includes(deviceId)) {
+            sensorData = { lastUpdated: "N/A" };
+          } else if (wlData[deviceId]) {
+            sensorData = wlData[deviceId];
+            lastUpdatedTime = new Date(sensorData.timestamp) || "N/A";
+          }
+        } else if (deviceType === "MDR Sensors" && mdrData[deviceId]) {
+          sensorData = mdrData[deviceId];
+          lastUpdatedTime = new Date(sensorData.timestamp);
+        } else if (deviceType === "Footfall Sensors" && footfallData[deviceId]) {
+          // Handle Footfall sensor data
+          sensorData = footfallData[deviceId];
+          lastUpdatedTime = new Date(sensorData.timestamp);
+        } else if (deviceType === "Occupancy Sensors" && occupancyData[deviceId]) {
+          // Handle Occupancy sensor data
+          sensorData = occupancyData[deviceId];
+          lastUpdatedTime = new Date(sensorData.timestamp || device.last_data_read);
+        }
+
+        return {
+          id: deviceId,
+          type: device.device_type || "",
+          category: deviceType,
+          location: device.location || "",
+          area: device.area || "",
+          lastUpdated:
+            sensorData && sensorData.lastUpdated === "N/A"
+              ? "N/A"
+              : new Date(lastUpdatedTime).toLocaleString(),
+          battery: actualBatteryLevel !== null 
+            ? actualBatteryLevel 
+            : (sensorData ? sensorData.battery || device.battery || 100 : device.battery || 100),
+          lastActive:
+            sensorData && sensorData.lastUpdated === "N/A"
+              ? null
+              : lastUpdatedTime,
+          sensorData: sensorData || null, // Store additional sensor data
+          isPoweredByPOE: isPoweredByPOE
+        };
+      })
+      .filter(device => device !== null) // Filter out null devices (those without a specific category)
+      .sort(compareDevices); // Sort the devices
+
+    setDevices(transformedData);
+
+    // Set initial active tab if there are devices
+    if (transformedData.length > 0) {
+      const categories = [
+        ...new Set(transformedData.map((device) => device.category)),
+      ];
+      if (!activeTab && categories.length > 0) {
+        setActiveTab(categories[0]);
+      }
+    }
+
+    setError(null);
+  } catch (err) {
+    console.error("Error fetching devices:", err);
+    setError("Failed to load devices. Please try again later.");
+  } finally {
+    setLoading(false);
+  }
+};
   // Fetch IAQ sensor data
   const fetchIAQData = async () => {
     try {
@@ -526,28 +565,15 @@ const fetchFootfallData = async () => {
       />
 
       {/* Header */}
-      <header className="bg-[#ffffff] custom-shadow h-14 lg:h-20 xl:h-[100px] fixed top-0 left-0 w-full z-10 flex items-center justify-between">
-        <div className="flex items-center h-full">
-          <button
-            className={`flex flex-col justify-center items-start space-y-1 pl-8 ${
-              isSidebarOpen ? "hidden" : ""
-            }`}
-            onClick={() => setIsSidebarOpen(true)}
-          >
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-            <span className="block sm:w-8 sm:h-1 w-4 h-0.5 bg-gray-700"></span>
-          </button>
-        </div>
-        <img
-          src="/library-logo-final_2024.png"
-          alt="LNU Logo"
-          className="h-6 sm:h-10 lg:h-12 xl:h-14 mx-auto"
-        />
-      </header>
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+        showWeatherData={true}  
+        showLiveCount={true}    
+      />
 
       <div className="flex justify-between items-center md:mb-6 mb-4">
-        <h1 className="md:text-2xl text-xl font-bold">Devices</h1>
+        <h1 className="md:text-2xl text-xl font-bold">デバイス​</h1>
 
         {/* Idle threshold dropdown */}
         <div className="flex items-center space-x-2">
@@ -555,7 +581,7 @@ const fetchFootfallData = async () => {
             htmlFor="idleThreshold"
             className="text-gray-600 font-medium text-sm md:text-lg"
           >
-            Idle Threshold:
+            アイドルしきい値:
           </label>
           <select
             id="idleThreshold"
@@ -580,7 +606,7 @@ const fetchFootfallData = async () => {
           </div>
           <input
             type="text"
-            placeholder="Search by device ID or Type or Location or Area"
+            placeholder="デバイスID・種類・場所・エリアのいずれかで検索"
             value={searchTerm}
             onChange={handleSearchChange}
             className="flex-1 p-2 outline-none"
@@ -672,7 +698,7 @@ const fetchFootfallData = async () => {
                     )}
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold">{category}</h2>
+                  <h2 className="text-lg font-semibold">{getJapaneseDisplayName(category)}</h2>
                     <p className="text-sm text-gray-500">
                       {getCategoryCount(category)} devices
                     </p>
