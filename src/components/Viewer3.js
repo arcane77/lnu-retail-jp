@@ -124,6 +124,9 @@ const Viewer3 = () => {
     return () => clearInterval(intervalId);
   }, []);
 
+  // Replace the problematic lines with this properly structured useEffect:
+
+useEffect(() => {
   // Fetch Computer Room occupancy data
   const fetchOccupancyData = async () => {
     try {
@@ -135,8 +138,6 @@ const Viewer3 = () => {
       // Process the response data
       const processedCRData = {};
       const processedMPRData = {};
-
-      
 
       // Check if data is an array
       if (Array.isArray(data)) {
@@ -157,21 +158,25 @@ const Viewer3 = () => {
           }
         });
 
-        
-
-        // Update Computer Room data
+        // Instead of always updating, check for changes first
         setCRData((prevData) => {
-          if (JSON.stringify(prevData) !== JSON.stringify(processedCRData)) {
-            return { ...prevData, ...processedCRData };
+          const newData = { ...prevData, ...processedCRData };
+          if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+            console.log("CR Data changed, updating...");
+            return newData;
           }
+          console.log("No CR change detected, skipping update");
           return prevData;
         });
 
         // Update Multi Purpose Room data
         setMPRData((prevData) => {
-          if (JSON.stringify(prevData) !== JSON.stringify(processedMPRData)) {
-            return { ...prevData, ...processedMPRData };
+          const newData = { ...prevData, ...processedMPRData };
+          if (JSON.stringify(prevData) !== JSON.stringify(newData)) {
+            console.log("MPR Data changed, updating...");
+            return newData;
           }
+          console.log("No MPR change detected, skipping update");
           return prevData;
         });
       }
@@ -180,11 +185,20 @@ const Viewer3 = () => {
     }
   };
 
-  // fetch immediately
+  // Fetch immediately on mount
   fetchOccupancyData();
 
-  // every 40 seconds
-  const intervalId = setInterval(fetchOccupancyData, 40000);
+  // interval for periodic fetching
+  const intervalId = setInterval(fetchOccupancyData, 10000);
+
+  // CRITICAL: Clean up the interval when component unmounts or dependencies change
+  return () => {
+    console.log("Cleaning up occupancy data interval");
+    clearInterval(intervalId);
+  };
+}, []); // Empty dependency array means this effect runs once on mount
+
+
 
   useEffect(() => {
     // Default fallback values if API fails
@@ -374,15 +388,7 @@ const Viewer3 = () => {
     return () => clearInterval(intervalId);
   }, []);
 
-  useEffect(() => {
-    // fetch immediately
-    fetchOccupancyData();
-  
-    // every 40 seconds
-    const intervalId = setInterval(fetchOccupancyData, 40000);
-  
-    return () => clearInterval(intervalId);
-  }, []);
+
 
   useEffect(() => {
     const fetchTemperature = async () => {
